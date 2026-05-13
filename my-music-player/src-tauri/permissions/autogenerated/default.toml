@@ -1,0 +1,14 @@
+"$schema" = "schemas/schema.json"
+[[permission]]
+identifier = "default"
+description = "Default permissions"
+commands.allow = [
+  "add_to_queue",
+  "scan_local_folder",
+  "play_track",
+  "pause_audio",
+  "resume_audio",
+  "stop_audio",
+  "set_volume",
+  "authenticate_spotify"
+]

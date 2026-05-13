@@ -25,7 +25,6 @@ impl AudioPlayer {
         std::thread::spawn(move || {
             let (_stream, stream_handle) = OutputStream::try_default().unwrap();
             tx.send(stream_handle).unwrap();
-            // Keep the thread alive to prevent `_stream` from being dropped.
             loop {
                 std::thread::sleep(std::time::Duration::from_secs(3600));
             }
@@ -49,14 +48,15 @@ impl AudioPlayer {
         let decoder = Decoder::new(reader).map_err(|e| e.to_string())?;
 
         let sink = self.sink.lock().unwrap();
-        sink.stop(); // Stop current playing
+        let current_volume = sink.volume();
+        sink.stop();
 
         let new_sink = Sink::try_new(&self.stream_handle).unwrap();
+        new_sink.set_volume(current_volume);
         new_sink.append(decoder);
         new_sink.play();
 
         *self.is_playing.lock().unwrap() = true;
-        // Replace old sink with new one
         drop(sink);
         *self.sink.lock().unwrap() = new_sink;
 
@@ -79,7 +79,6 @@ impl AudioPlayer {
     }
 
     pub fn set_volume(&self, volume: f32) {
-        // Rodio volume is linear, typically 0.0 to 1.0
         self.sink.lock().unwrap().set_volume(volume);
     }
 }

@@ -15,6 +15,7 @@ interface PlayerState {
 
   // Acciones
   addToQueue: (path: string, title: string) => Promise<void>;
+  scanLocalFolder: (folderPath: string) => Promise<void>;
   playTrack: (index: number) => Promise<void>;
   pause: () => Promise<void>;
   resume: () => Promise<void>;
@@ -35,12 +36,20 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       const newQueue = await invoke<Track[]>('add_to_queue', { path, title });
       set({ queue: newQueue });
 
-      // Si es la primera canción, la reproducimos
       if (get().currentIndex === null && newQueue.length === 1) {
         await get().playTrack(0);
       }
     } catch (error) {
       console.error("Error adding to queue:", error);
+    }
+  },
+
+  scanLocalFolder: async (folderPath) => {
+    try {
+      const newQueue = await invoke<Track[]>('scan_local_folder', { folderPath });
+      set({ queue: newQueue, currentIndex: null, isPlaying: false });
+    } catch (error) {
+      console.error("Error scanning folder:", error);
     }
   },
 
