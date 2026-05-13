@@ -11,7 +11,9 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SourcesRouteImport } from './routes/sources'
 import { Route as SearchRouteImport } from './routes/search'
+import { Route as LibraryRouteImport } from './routes/library'
 import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as AiRouteImport } from './routes/ai'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PlaylistsIndexRouteImport } from './routes/playlists/index'
 import { Route as PlaylistsPlaylistIdRouteImport } from './routes/playlists/$playlistId'
@@ -32,9 +34,19 @@ const SearchRoute = SearchRouteImport.update({
   path: '/search',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LibraryRoute = LibraryRouteImport.update({
+  id: '/library',
+  path: '/library',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AiRoute = AiRouteImport.update({
+  id: '/ai',
+  path: '/ai',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -87,7 +99,9 @@ const AlbumProviderIdAlbumIdRoute = AlbumProviderIdAlbumIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/ai': typeof AiRoute
   '/dashboard': typeof DashboardRoute
+  '/library': typeof LibraryRoute
   '/search': typeof SearchRoute
   '/sources': typeof SourcesRoute
   '/favorites/albums': typeof FavoritesAlbumsRoute
@@ -101,7 +115,9 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/ai': typeof AiRoute
   '/dashboard': typeof DashboardRoute
+  '/library': typeof LibraryRoute
   '/search': typeof SearchRoute
   '/sources': typeof SourcesRoute
   '/favorites/albums': typeof FavoritesAlbumsRoute
@@ -116,7 +132,9 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/ai': typeof AiRoute
   '/dashboard': typeof DashboardRoute
+  '/library': typeof LibraryRoute
   '/search': typeof SearchRoute
   '/sources': typeof SourcesRoute
   '/favorites/albums': typeof FavoritesAlbumsRoute
@@ -132,7 +150,9 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/ai'
     | '/dashboard'
+    | '/library'
     | '/search'
     | '/sources'
     | '/favorites/albums'
@@ -146,7 +166,9 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/ai'
     | '/dashboard'
+    | '/library'
     | '/search'
     | '/sources'
     | '/favorites/albums'
@@ -160,7 +182,9 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/ai'
     | '/dashboard'
+    | '/library'
     | '/search'
     | '/sources'
     | '/favorites/albums'
@@ -175,7 +199,9 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AiRoute: typeof AiRoute
   DashboardRoute: typeof DashboardRoute
+  LibraryRoute: typeof LibraryRoute
   SearchRoute: typeof SearchRoute
   SourcesRoute: typeof SourcesRoute
   FavoritesAlbumsRoute: typeof FavoritesAlbumsRoute
@@ -204,11 +230,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SearchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/library': {
+      id: '/library'
+      path: '/library'
+      fullPath: '/library'
+      preLoaderRoute: typeof LibraryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard': {
       id: '/dashboard'
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ai': {
+      id: '/ai'
+      path: '/ai'
+      fullPath: '/ai'
+      preLoaderRoute: typeof AiRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -279,7 +319,9 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AiRoute: AiRoute,
   DashboardRoute: DashboardRoute,
+  LibraryRoute: LibraryRoute,
   SearchRoute: SearchRoute,
   SourcesRoute: SourcesRoute,
   FavoritesAlbumsRoute: FavoritesAlbumsRoute,

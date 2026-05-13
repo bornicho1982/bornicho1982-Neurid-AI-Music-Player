@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { useEffect, useRef } from 'react';
 
 import { AudioSource } from '@nuclearplayer/hifi';
@@ -144,6 +144,16 @@ const resolveStreamWithFallback = async (
   return tryNext(candidates);
 };
 
+const isLocalFile = (track: Track): boolean => {
+  return Boolean(track.localFile?.fileUri);
+};
+
+const buildLocalAudioSource = (track: Track): AudioSource => {
+  const fileUri = track.localFile!.fileUri;
+  const assetUrl = convertFileSrc(fileUri);
+  return { url: assetUrl, protocol: 'file' };
+};
+
 const resolveStream = async (
   item: QueueItem,
   t: TFunction,
@@ -160,6 +170,17 @@ const resolveStream = async (
     stop();
   }
   updateItemState(item.id, { status: 'loading', error: undefined });
+
+  // Fast path: local files don't need stream resolution
+  if (isLocalFile(item.track)) {
+    const audioSource = buildLocalAudioSource(item.track);
+    updateItemState(item.id, { status: 'idle' });
+    setSrc(audioSource);
+    if (autoPlay) {
+      play();
+    }
+    return;
+  }
 
   const candidates = await resolveCandidates(item.track);
   if (signal.aborted) {

@@ -1,4 +1,4 @@
-import { CassetteTape } from 'lucide-react';
+import { CassetteTape, Play } from 'lucide-react';
 import { FC, ReactNode } from 'react';
 
 import { cn } from '../../utils';
@@ -29,7 +29,7 @@ export const Card: FC<CardProps> = ({
     data-testid="card"
     size="flexible"
     className={cn(
-      'flex w-42 flex-col items-stretch gap-2 p-2 text-left',
+      'group flex w-42 flex-col items-stretch gap-2 p-2 text-left transition-all duration-300 hover:scale-[1.03] hover:shadow-xl hover:shadow-primary/10',
       className,
     )}
     onClick={onClick}
@@ -45,7 +45,7 @@ export const Card: FC<CardProps> = ({
           src={src}
           alt={title}
           className="absolute inset-0"
-          imgClassName="h-full w-full object-cover"
+          imgClassName="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
           placeholder={
             <CassetteTape
               size={96}
@@ -55,6 +55,12 @@ export const Card: FC<CardProps> = ({
           }
         />
       )}
+      {/* Play overlay on hover */}
+      <div className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-all duration-300 group-hover:bg-black/30 group-hover:opacity-100">
+        <div className="flex size-10 items-center justify-center rounded-full bg-primary shadow-lg shadow-primary/30 transition-transform duration-300 scale-75 group-hover:scale-100">
+          <Play size={18} className="ml-0.5 text-white" />
+        </div>
+      </div>
     </Box>
 
     {(title || subtitle) && (
@@ -62,13 +68,13 @@ export const Card: FC<CardProps> = ({
         {title && (
           <div
             data-testid="card-title"
-            className="text-foreground truncate text-sm font-bold"
+            className="text-foreground truncate text-sm font-medium group-hover:text-primary transition-colors duration-200"
           >
             {title}
           </div>
         )}
         {subtitle && (
-          <div className="text-foreground truncate text-xs opacity-60">
+          <div className="text-foreground truncate text-xs opacity-50">
             {subtitle}
           </div>
         )}

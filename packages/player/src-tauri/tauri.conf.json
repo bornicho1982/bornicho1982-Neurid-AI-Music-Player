@@ -1,9 +1,9 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Nuclear",
-  "mainBinaryName": "nuclear-music-player",
-  "version": "1.36.0",
-  "identifier": "com.nuclearplayer",
+  "productName": "Neurid",
+  "mainBinaryName": "neurid-music-player",
+  "version": "2.0.0",
+  "identifier": "com.neurid.player",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
@@ -13,7 +13,7 @@
   "app": {
     "windows": [
       {
-        "title": "Nuclear Music Player",
+        "title": "Neurid AI Music Player",
         "width": 800,
         "height": 600,
         "resizable": true,
@@ -21,16 +21,20 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["**"]
+      }
     }
   },
   "bundle": {
     "active": true,
     "category": "Music",
-    "shortDescription": "Music streaming app for your desktop",
-    "longDescription": "Nuclear is a free, open-source music player without ads or tracking. Search for any song or artist, build playlists, and start listening.",
-    "copyright": "Copyright 2025-2026 nukeop",
-    "homepage": "https://nuclearplayer.com",
+    "shortDescription": "Next-gen AI powered music streaming app",
+    "longDescription": "Neurid is a smart, privacy-focused music player powered by local AI. Seamlessly integrates local library, streaming sources, and intelligent playlist generation.",
+    "copyright": "Copyright 2026 Neurid Project",
+    "homepage": "https://neurid-player.com",
     "createUpdaterArtifacts": true,
     "targets": "all",
     "icon": [

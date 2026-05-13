@@ -32,14 +32,14 @@ export const ViewShell: FC<ViewShellProps> = ({
   >
     {title && (
       <h1
-        className="mb-6 flex w-full flex-0 flex-row text-center text-3xl font-bold"
+        className="mb-6 flex w-full flex-0 flex-row text-center text-3xl font-bold text-gradient"
         data-testid="title"
       >
         {title}
       </h1>
     )}
     {subtitle && (
-      <h2 className="mb-4 flex w-full flex-0 flex-row text-center text-xl font-semibold">
+      <h2 className="text-foreground-secondary mb-4 flex w-full flex-0 flex-row text-center text-xl font-medium">
         {subtitle}
       </h2>
     )}

@@ -16,6 +16,7 @@ import './basic/aurora.css';
 import './basic/ember.css';
 import './basic/lagoon.css';
 import './basic/arctic-moss.css';
+import './basic/rebirth.css';
 
 export type BasicThemeMeta = {
   id: string;
@@ -72,6 +73,16 @@ const BUILT_INS: BasicThemeMeta[] = [
       'oklch(0.97 0.008 200)',
       'oklch(0.58 0.09 175)',
       'oklch(0.20 0.02 175)',
+    ],
+  },
+  {
+    id: 'nuclear:rebirth',
+    name: 'Rebirth',
+    palette: [
+      'oklch(0.68 0.20 340)',
+      'oklch(0.93 0.005 280)',
+      'oklch(0.28 0.03 285)',
+      'oklch(0.13 0.015 280)',
     ],
   },
 ];

@@ -12,7 +12,7 @@ export const PlayerWorkspaceLeftSidebar: FC<
   return (
     <PlayerWorkspaceSidebar
       side="left"
-      className={cn(props.className, 'p-2')}
+      className={cn(props.className, 'm-4 rounded-3xl bg-black/40 border border-white/5 shadow-2xl backdrop-blur-3xl overflow-hidden')}
       {...props}
     >
       {children}

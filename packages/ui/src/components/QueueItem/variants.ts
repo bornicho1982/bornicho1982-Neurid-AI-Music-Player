@@ -11,8 +11,8 @@ export const queueItemVariants = cva(
         success: '',
       },
       isCurrent: {
-        true: 'bg-primary',
-        false: '',
+        true: 'bg-primary/10 border-l-2 border-l-primary shadow-[inset_0_0_20px_var(--glow-color)]',
+        false: 'hover:bg-white/[0.03]',
       },
       isCollapsed: {
         true: 'h-9 w-9 justify-center p-0',

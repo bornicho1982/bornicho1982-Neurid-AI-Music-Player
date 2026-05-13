@@ -1,8 +1,8 @@
 {
   "common": {
     "app": {
-      "name": "Nuclear",
-      "description": "Aplicación de streaming de música gratis"
+      "name": "Neurid",
+      "description": "El santuario musical premium para tu escritorio"
     },
     "actions": {
       "save": "Guardar",
@@ -195,9 +195,9 @@
   },
   "dashboard": {
     "title": "Panel",
-    "empty-state": "Bienvenido a Nuclear",
-    "empty-state-description": "Instala un plugin para ver las canciones más escuchadas, nuevos lanzamientos y recomendaciones aquí.",
-    "empty-state-action": "Explorar plugins",
+    "empty-state": "Bienvenido a Neurid",
+    "empty-state-description": "Configura tus conectores para ver las canciones más escuchadas, nuevos lanzamientos y recomendaciones aquí.",
+    "empty-state-action": "Gestionar conectores",
     "top-tracks": "Canciones más escuchadas",
     "top-artists": "Artistas más escuchados",
     "top-albums": "Álbumes más escuchados",
@@ -257,7 +257,7 @@
     "clickToRestart": "Haz clic para reiniciar"
   },
   "flatpak": {
-    "sandboxWarning": "Estás ejecutando Nuclear en un entorno Flatpak. Algunas funciones pueden no funcionar correctamente. Si tienes problemas, prueba la versión .deb o AppImage.",
+    "sandboxWarning": "Estás ejecutando Neurid en un entorno Flatpak. Algunas funciones pueden no funcionar correctamente. Si tienes problemas, prueba la versión .deb o AppImage.",
     "dismiss": "Entendido"
   },
   "preferences": {
@@ -354,11 +354,11 @@
       "mcp": {
         "enabled": {
           "title": "Habilitar servidor MCP",
-          "description": "Inicia un servidor MCP local que permite a herramientas de IA controlar Nuclear."
+          "description": "Inicia un servidor MCP local que permite a herramientas de IA controlar Neurid."
         },
         "serverUrl": {
           "title": "URL del servidor MCP",
-          "description": "Apunta tu herramienta de IA a esta URL para conectarse a Nuclear."
+          "description": "Apunta tu herramienta de IA a esta URL para conectarse a Neurid."
         }
       },
       "discord": {

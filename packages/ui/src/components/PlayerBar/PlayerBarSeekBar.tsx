@@ -33,7 +33,7 @@ export const PlayerBarSeekBar: FC<PlayerSeekBarProps> = ({
     <div className={cn('w-full select-none', className)}>
       <div
         ref={containerRef}
-        className={cn('relative h-4 w-full', {
+        className={cn('group relative h-4 w-full', {
           'pointer-events-none cursor-not-allowed': isLoading,
           'cursor-pointer': isInteractive,
         })}
@@ -41,16 +41,16 @@ export const PlayerBarSeekBar: FC<PlayerSeekBarProps> = ({
         aria-disabled={isLoading}
       >
         <div className="absolute right-0 left-0 z-10 flex h-full flex-row items-center justify-between px-2 pt-0.5 text-xs leading-none">
-          <span className="text-foreground tabular-nums">
+          <span className="text-foreground/70 tabular-nums text-[11px] font-medium">
             {formatTimeSeconds(elapsedSeconds)}
           </span>
-          <span className="text-foreground tabular-nums">
+          <span className="text-foreground/40 tabular-nums text-[11px]">
             {formatTimeSeconds(-Math.abs(remainingSeconds))}
           </span>
         </div>
         <div
           className={cn(
-            'border-border bg-background-secondary absolute inset-0 border-t-(length:--border-width)',
+            'bg-background-secondary/60 absolute inset-0 backdrop-blur-sm border-t border-white/[0.04]',
             {
               'overflow-hidden': isLoading,
             },
@@ -60,10 +60,15 @@ export const PlayerBarSeekBar: FC<PlayerSeekBarProps> = ({
             <div className="bg-stripes-diagonal absolute inset-0 opacity-80" />
           )}
           {!isLoading && (
-            <div
-              className={cn('bg-primary h-full', 'transition-none')}
-              style={{ width: `${clamped}%` }}
-            />
+            <>
+              <div
+                className="bg-gradient-to-r from-primary/80 to-primary h-full transition-none relative"
+                style={{ width: `${clamped}%` }}
+              >
+                {/* Glowing progress dot */}
+                <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 size-2 rounded-full bg-primary shadow-[0_0_8px_var(--glow-color-strong)] opacity-0 group-hover:opacity-100 transition-opacity" />
+              </div>
+            </>
           )}
         </div>
       </div>

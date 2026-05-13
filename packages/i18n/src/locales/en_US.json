@@ -1,8 +1,8 @@
 {
   "common": {
     "app": {
-      "name": "Nuclear",
-      "description": "Music streaming app for your desktop"
+      "name": "Neurid",
+      "description": "The premium music sanctuary for your desktop"
     },
     "actions": {
       "save": "Save",
@@ -195,9 +195,9 @@
   },
   "dashboard": {
     "title": "Dashboard",
-    "empty-state": "Welcome to Nuclear",
-    "empty-state-description": "Install a plugin to see top tracks, new releases, and recommendations here.",
-    "empty-state-action": "Browse plugins",
+    "empty-state": "Welcome to Neurid",
+    "empty-state-description": "Configure your connectors to see top tracks, new releases, and recommendations here.",
+    "empty-state-action": "Manage connectors",
     "top-tracks": "Top Tracks",
     "top-artists": "Top Artists",
     "top-albums": "Top Albums",
@@ -262,7 +262,7 @@
     "clickToRestart": "Click to restart"
   },
   "flatpak": {
-    "sandboxWarning": "You're running Nuclear in a Flatpak sandbox. Some features may not work correctly. If you experience issues, try the .deb or AppImage instead.",
+    "sandboxWarning": "You're running Neurid in a Flatpak sandbox. Some features may not work correctly. If you experience issues, try the .deb or AppImage instead.",
     "dismiss": "Got it"
   },
   "preferences": {
@@ -363,21 +363,21 @@
       "mcp": {
         "enabled": {
           "title": "Enable MCP Server",
-          "description": "Start a local MCP server that allows AI tools to control Nuclear."
+          "description": "Start a local MCP server that allows AI tools to control Neurid."
         },
         "serverUrl": {
           "title": "MCP Server URL",
-          "description": "Point your AI tool to this URL to connect to Nuclear."
+          "description": "Point your AI tool to this URL to connect to Neurid."
         }
       },
       "mpd": {
         "enabled": {
           "title": "Enable MPD Server",
-          "description": "Start a local MPD-compatible server so MPD clients can control Nuclear."
+          "description": "Start a local MPD-compatible server so MPD clients can control Neurid."
         },
         "serverUrl": {
           "title": "MPD Server URL",
-          "description": "Point your MPD client to this address to connect to Nuclear."
+          "description": "Point your MPD client to this address to connect to Neurid."
         }
       },
       "discord": {

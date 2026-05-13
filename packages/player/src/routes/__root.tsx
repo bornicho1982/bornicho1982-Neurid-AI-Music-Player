@@ -1,128 +1,96 @@
 import { createRootRoute } from '@tanstack/react-router';
 import {
-  CableIcon,
   DiscIcon,
-  GaugeIcon,
   ListMusicIcon,
   MusicIcon,
   SettingsIcon,
+  SparklesIcon,
   UserIcon,
 } from 'lucide-react';
 
-import { useTranslation } from '@nuclearplayer/i18n';
 import {
   PlayerShell,
-  PlayerWorkspace,
   RouteTransition,
-  SidebarNavigation,
   SidebarNavigationItem,
   Toaster,
 } from '@nuclearplayer/ui';
 
 import { ConnectedPlayerBar } from '../components/ConnectedPlayerBar';
-import {
-  ConnectedQueuePanel,
-  QueueHeaderActions,
-} from '../components/ConnectedQueuePanel';
+import { ConnectedQueuePanel } from '../components/ConnectedQueuePanel';
 import { ConnectedSettingsModal } from '../components/ConnectedSettingsModal';
-import { ConnectedTopBar } from '../components/ConnectedTopBar';
 import { DevTools } from '../components/DevTools';
-import { FlatpakWarningBanner } from '../components/FlatpakWarningBanner';
 import { SoundProvider } from '../components/SoundProvider';
 import { StreamResolver } from '../components/StreamResolver';
-import { GlobalShortcuts } from '../shortcuts';
-import { useLayoutStore } from '../stores/layoutStore';
 import { useSettingsModalStore } from '../stores/settingsModalStore';
 import { useStartupStore } from '../stores/startupStore';
 
 const RootComponent = () => {
-  const { t } = useTranslation('navigation');
-  const { t: tPrefs } = useTranslation('preferences');
-  const {
-    leftSidebar,
-    rightSidebar,
-    toggleLeftSidebar,
-    toggleRightSidebar,
-    setLeftSidebarWidth,
-    setRightSidebarWidth,
-  } = useLayoutStore();
   const openSettings = useSettingsModalStore((state) => state.open);
   const isStartingUp = useStartupStore((state) => state.isStartingUp);
 
   return (
-    <PlayerShell>
-      <GlobalShortcuts />
-      <div>
-        <FlatpakWarningBanner />
-        <ConnectedTopBar />
-      </div>
+    <PlayerShell className="bg-background text-foreground font-inter relative select-none">
       {!isStartingUp && <StreamResolver />}
       <SoundProvider>
-        <PlayerWorkspace>
-          <PlayerWorkspace.LeftSidebar
-            width={leftSidebar.width}
-            isCollapsed={leftSidebar.isCollapsed}
-            onWidthChange={setLeftSidebarWidth}
-            onToggle={toggleLeftSidebar}
-          >
-            <SidebarNavigation isCompact={leftSidebar.isCollapsed}>
-              <div className="flex flex-1 flex-col gap-2 overflow-y-auto">
-                <SidebarNavigationItem
-                  to="/dashboard"
-                  icon={<GaugeIcon />}
-                  label={t('dashboard')}
-                />
-                <SidebarNavigationItem
-                  to="/favorites/albums"
-                  icon={<DiscIcon />}
-                  label={t('favoriteAlbums')}
-                />
-                <SidebarNavigationItem
-                  to="/favorites/tracks"
-                  icon={<MusicIcon />}
-                  label={t('favoriteTracks')}
-                />
-                <SidebarNavigationItem
-                  to="/favorites/artists"
-                  icon={<UserIcon />}
-                  label={t('favoriteArtists')}
-                />
-                <SidebarNavigationItem
-                  to="/playlists"
-                  icon={<ListMusicIcon />}
-                  label={t('playlists')}
-                />
-                <SidebarNavigationItem
-                  to="/sources"
-                  icon={<CableIcon />}
-                  label={t('sources')}
-                />
+        <div className="flex h-screen w-full overflow-hidden">
+          {/* Minimalist Sidebar */}
+          <aside className="neurid-sidebar flex-shrink-0 border-r border-white/5">
+            <div className="flex items-center gap-3 mb-12">
+              <div className="w-8 h-8 bg-neurid-teal rounded-lg shadow-[0_0_15px_rgba(0,242,254,0.5)] flex items-center justify-center">
+                <MusicIcon size={18} className="text-black" />
               </div>
-              <SidebarNavigationItem
-                icon={<SettingsIcon />}
-                label={tPrefs('title')}
-                onClick={() => openSettings()}
-              />
-            </SidebarNavigation>
-          </PlayerWorkspace.LeftSidebar>
+              <span className="text-xl font-black tracking-tighter text-white">NEURID <span className="opacity-40">STUDIO</span></span>
+            </div>
 
-          <PlayerWorkspace.Main>
-            <RouteTransition />
-          </PlayerWorkspace.Main>
+            <nav className="flex flex-col gap-8">
+              <SidebarNavigationItem to="/library" icon={<MusicIcon size={20} />} label="Library" className="sidebar-link" />
+              <SidebarNavigationItem to="/playlists" icon={<ListMusicIcon size={20} />} label="Playlists" className="sidebar-link" />
+              <SidebarNavigationItem to="/dashboard" icon={<DiscIcon size={20} />} label="Discover" className="sidebar-link" />
+              <SidebarNavigationItem to="/ai" icon={<SparklesIcon size={20} />} label="Neurid AI" className="sidebar-link" />
+              <button onClick={() => openSettings()} className="sidebar-link text-left">
+                <SettingsIcon size={20} />
+                <span>Settings</span>
+              </button>
+            </nav>
 
-          <PlayerWorkspace.RightSidebar
-            width={rightSidebar.width}
-            isCollapsed={rightSidebar.isCollapsed}
-            onWidthChange={setRightSidebarWidth}
-            onToggle={toggleRightSidebar}
-            headerActions={<QueueHeaderActions />}
-          >
-            <ConnectedQueuePanel isCollapsed={rightSidebar.isCollapsed} />
-          </PlayerWorkspace.RightSidebar>
-        </PlayerWorkspace>
+            <div className="mt-auto">
+              <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center border border-white/10 hover:bg-white/10 transition-colors cursor-pointer">
+                <UserIcon size={20} className="text-white/40" />
+              </div>
+            </div>
+          </aside>
+
+          {/* Main Content Area */}
+          <main className="flex-1 flex flex-col relative min-w-0">
+            {/* Immersive Top Bar */}
+            <header className="px-12 py-8 flex items-center justify-center">
+              <div className="search-container">
+                <input 
+                  type="text" 
+                  placeholder="Ask Neurid AI..." 
+                  className="neurid-search"
+                />
+                <div className="absolute right-6 top-1/2 -translate-y-1/2 text-white/20">
+                  <MusicIcon size={24} />
+                </div>
+              </div>
+            </header>
+
+            {/* Scrollable View Area */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar px-12 pb-48">
+              <RouteTransition />
+            </div>
+
+            {/* Floating Player Sanctuary */}
+            <div className="player-sanctuary">
+              <ConnectedPlayerBar />
+            </div>
+          </main>
+
+          <ConnectedQueuePanel isCollapsed={false} className="w-80 border-l border-white/5 bg-black/20 backdrop-blur-xl" />
+        </div>
       </SoundProvider>
 
-      <ConnectedPlayerBar />
       <Toaster />
       <ConnectedSettingsModal />
       <DevTools />

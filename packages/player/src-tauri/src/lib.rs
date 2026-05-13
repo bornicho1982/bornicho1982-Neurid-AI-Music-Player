@@ -1,4 +1,5 @@
 pub mod bridge;
+pub mod library;
 pub mod commands;
 pub mod discord;
 pub mod http;
@@ -65,7 +66,10 @@ pub fn run() {
             discord::discord_disconnect,
             discord::discord_set_activity,
             discord::discord_clear_activity,
-            bridge::bridge_respond
+            bridge::bridge_respond,
+            library::scan_music_directory,
+            library::get_track_metadata,
+            library::get_default_music_dir
         ])
         .setup(|app| {
             logging::mark_startup_complete();

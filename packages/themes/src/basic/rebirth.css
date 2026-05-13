@@ -1,0 +1,78 @@
+/* Neurid Theme — Premium dark with glassmorphism */
+
+/* Forced Dark Mode (Neurid doesn't use light mode) */
+:root[data-theme-id='nuclear:rebirth'] {
+  /* Deep, rich backgrounds with subtle warm tint */
+  --background: oklch(0.13 0.015 280);
+  --background-secondary: oklch(0.17 0.02 285);
+  --background-input: oklch(0.10 0.012 280);
+
+  /* Clean, readable text */
+  --foreground: oklch(0.93 0.005 280);
+  --foreground-secondary: oklch(0.60 0.04 300);
+  --foreground-input: oklch(0.90 0 0);
+
+  /* The signature accent */
+  --primary: oklch(0.68 0.20 340);
+
+  /* Subtle borders that don't compete */
+  --border: oklch(0.28 0.03 285);
+  --border-input: oklch(0.25 0.02 280);
+
+  /* Ring for focus states */
+  --ring: oklch(0.68 0.20 340);
+  
+  --shadow-color: oklch(0 0 0 / 0.3);
+  --shadow-x: 0px;
+  --shadow-y: 0px;
+  --border-width: 1px;
+}
+
+/* Dark mode — the star of the show */
+:root[data-theme-id='nuclear:rebirth'][data-theme='dark'] {
+  /* Deep, rich backgrounds with subtle warm tint */
+  --background: oklch(0.13 0.015 280);
+  --background-secondary: oklch(0.17 0.02 285);
+  --background-input: oklch(0.10 0.012 280);
+
+  /* Clean, readable text */
+  --foreground: oklch(0.93 0.005 280);
+  --foreground-secondary: oklch(0.60 0.04 300);
+  --foreground-input: oklch(0.90 0 0);
+
+  /* The signature pink accent — vibrant but not neon */
+  --primary: oklch(0.68 0.20 340);
+
+  /* Subtle borders that don't compete */
+  --border: oklch(0.28 0.03 285);
+  --border-input: oklch(0.25 0.02 280);
+
+  /* Ring for focus states */
+  --ring: oklch(0.68 0.20 340);
+
+  /* Adjusted accent palette to complement the pink */
+  --accent-green: oklch(0.70 0.16 155);
+  --accent-yellow: oklch(0.78 0.12 90);
+  --accent-purple: oklch(0.65 0.18 295);
+  --accent-blue: oklch(0.68 0.14 245);
+  --accent-orange: oklch(0.72 0.14 55);
+  --accent-cyan: oklch(0.72 0.13 195);
+  --accent-red: oklch(0.65 0.17 22);
+
+  /* Shadow: eliminated for clean glassmorphism */
+  --shadow-color: oklch(0 0 0 / 0.3);
+  --shadow-x: 0px;
+  --shadow-y: 0px;
+
+  /* Borders: thinner for modern feel */
+  --border-width: 1px;
+
+  /* Rebirth-specific tokens */
+  --glass-bg: oklch(0.17 0.02 285 / 0.6);
+  --glass-border: oklch(1 0 0 / 0.06);
+  --glass-blur: 16px;
+  --glow-color: oklch(0.68 0.20 340 / 0.15);
+  --glow-color-strong: oklch(0.68 0.20 340 / 0.30);
+  --surface-hover: oklch(1 0 0 / 0.04);
+  --surface-active: oklch(1 0 0 / 0.08);
+}

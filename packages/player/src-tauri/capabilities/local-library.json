@@ -1,0 +1,37 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "local-library",
+  "description": "Allows the local library feature to read music files from the filesystem and open directory pickers",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "dialog:allow-open",
+    "dialog:allow-message",
+    {
+      "identifier": "fs:allow-read-file",
+      "allow": [
+        { "path": "$HOME/Music/**/*" },
+        { "path": "$AUDIO/**/*" }
+      ]
+    },
+    {
+      "identifier": "fs:allow-read-dir",
+      "allow": [
+        { "path": "$HOME/Music" },
+        { "path": "$HOME/Music/**" },
+        { "path": "$AUDIO" },
+        { "path": "$AUDIO/**" }
+      ]
+    },
+    {
+      "identifier": "fs:allow-exists",
+      "allow": [
+        { "path": "$HOME/Music" },
+        { "path": "$HOME/Music/**/*" },
+        { "path": "$AUDIO" },
+        { "path": "$AUDIO/**/*" }
+      ]
+    }
+  ]
+}
