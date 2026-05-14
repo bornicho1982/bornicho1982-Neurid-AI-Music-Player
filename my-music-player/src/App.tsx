@@ -22,6 +22,7 @@ import {
   User
 } from 'lucide-react';
 import { usePlayerStore } from './store/playerStore';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { processCommand } from './ai/aiWorker';
 
 const App = () => {
@@ -277,7 +278,16 @@ const NeuridAIView = () => (
 import { open } from '@tauri-apps/plugin-dialog';
 
 const LibraryView = () => {
-  const { queue, playTrack, currentIndex, scanLocalFolder } = usePlayerStore();
+  const { library, playTrack, currentIndex, scanLocalFolder, loadLibrary } = usePlayerStore();
+  const parentRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => { loadLibrary(); }, []);
+
+  const rowVirtualizer = useVirtualizer({
+    count: library.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 60,
+  });
 
   const handleSelectFolder = async () => {
     try {
@@ -295,11 +305,11 @@ const LibraryView = () => {
   };
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex items-center justify-between mb-8">
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 h-full flex flex-col">
+      <div className="flex items-center justify-between mb-8 flex-shrink-0">
         <div>
           <h2 className="text-3xl font-bold tracking-tight mb-1">Tu Biblioteca Local</h2>
-          <p className="text-gray-400 text-sm">Gestiona tus archivos escaneados por el motor de Rust.</p>
+          <p className="text-gray-400 text-sm">Gestiona tus archivos escaneados localmente con alto rendimiento.</p>
         </div>
         <button
           onClick={handleSelectFolder}
@@ -310,45 +320,61 @@ const LibraryView = () => {
         </button>
       </div>
 
-      <div className="bg-[#161b26]/80 rounded-xl border border-white/5 overflow-hidden">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-white/5 text-gray-400 border-b border-white/5">
-            <tr>
-              <th className="p-4 font-medium w-12">#</th>
-              <th className="p-4 font-medium">Título</th>
-              <th className="p-4 font-medium">Ruta</th>
-            </tr>
-          </thead>
-          <tbody>
-            {queue.length === 0 ? (
-              <tr>
-                <td colSpan={3} className="p-8 text-center text-gray-500">
-                  La biblioteca está vacía. Selecciona una carpeta para escanear archivos.
-                </td>
-              </tr>
-            ) : (
-              queue.map((track, idx) => (
-                <tr
-                  key={track.id}
-                  onClick={() => playTrack(idx)}
-                  className={`border-b border-white/5 hover:bg-white/5 group cursor-pointer transition-colors ${currentIndex === idx ? 'bg-white/10' : ''}`}
-                >
-                  <td className="p-4 text-gray-500">
-                    <span className="group-hover:hidden">{currentIndex === idx ? <Play size={14} className="text-emerald-400" /> : idx + 1}</span>
-                    <Play size={14} className="hidden group-hover:block text-emerald-400" />
-                  </td>
-                  <td className={`p-4 font-medium flex items-center gap-3 ${currentIndex === idx ? 'text-emerald-400' : 'text-white'}`}>
-                    <div className="w-8 h-8 rounded bg-gray-800 flex items-center justify-center">
-                      <ListMusic size={14} className="text-gray-400" />
+      <div className="bg-[#161b26]/80 rounded-xl border border-white/5 overflow-hidden flex-1 flex flex-col">
+        <div className="flex bg-white/5 text-gray-400 border-b border-white/5 text-sm">
+          <div className="p-4 font-medium w-12 flex-shrink-0">#</div>
+          <div className="p-4 font-medium flex-1">Título</div>
+          <div className="p-4 font-medium w-1/3">Ruta</div>
+        </div>
+        <div ref={parentRef} className="flex-1 overflow-auto h-[400px]">
+          {library.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">
+              La biblioteca está vacía. Selecciona una carpeta para escanear archivos.
+            </div>
+          ) : (
+            <div
+              style={{
+                height: `${rowVirtualizer.getTotalSize()}px`,
+                width: '100%',
+                position: 'relative',
+              }}
+            >
+              {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                const index = virtualRow.index;
+                const track = library[index];
+                const isPlaying = currentIndex === index;
+
+                return (
+                  <div
+                    key={virtualRow.key}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      height: `${virtualRow.size}px`,
+                      transform: `translateY(${virtualRow.start}px)`,
+                    }}
+                    onClick={() => playTrack(index)}
+                    className={`flex items-center border-b border-white/5 hover:bg-white/5 group cursor-pointer transition-colors ${isPlaying ? 'bg-white/10' : ''}`}
+                  >
+                    <div className="p-4 text-gray-500 w-12 flex-shrink-0">
+                      <span className="group-hover:hidden">{isPlaying ? <Play size={14} className="text-emerald-400" /> : index + 1}</span>
+                      <Play size={14} className="hidden group-hover:block text-emerald-400" />
                     </div>
-                    {track.title}
-                  </td>
-                  <td className="p-4 text-purple-400 truncate max-w-xs" title={track.path}>{track.path}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+                    <div className={`p-4 font-medium flex items-center gap-3 flex-1 ${isPlaying ? 'text-emerald-400' : 'text-white'}`}>
+                      <div className="w-8 h-8 rounded bg-gray-800 flex items-center justify-center flex-shrink-0">
+                        <ListMusic size={14} className="text-gray-400" />
+                      </div>
+                      <span className="truncate">{track.title || track.filename}</span>
+                    </div>
+                    <div className="p-4 text-purple-400 truncate w-1/3 text-sm" title={track.path}>{track.path}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
