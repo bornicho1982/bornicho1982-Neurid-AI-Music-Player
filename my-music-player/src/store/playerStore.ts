@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { addOrUpdateTracks, getAllTracks, TrackEntity, PlaylistEntity, savePlaylist, getAllPlaylists, getPlaylistTracks, deletePlaylist, createEmptyPlaylist, addTrackToPlaylist, removeTrackFromPlaylist } from '../db';
 import { pipedResolver } from '../services/pipedResolver';
 import { spotifyConnector } from '../services/spotifyConnector';
@@ -34,6 +35,7 @@ interface PlayerState {
   analyser: AnalyserNode | null;
   resolvedNextTrackUrl: string | null;
   lastPlayedTrack: Track | null;
+  isTelemetrySetup: boolean;
 
   // UI Actions
   setActiveTab: (tab: string) => void;
@@ -57,6 +59,7 @@ interface PlayerState {
 
   // Playback Actions
   updateTime: () => Promise<void>;
+  setupAudioTelemetry: () => Promise<void>;
   preResolveNext: () => Promise<void>;
   fetchLyrics: () => Promise<void>;
   setQuality: (quality: '128k' | '256k' | 'original') => void;
@@ -70,6 +73,7 @@ interface PlayerState {
   setVolume: (volume: number) => Promise<void>;
   nextTrack: () => Promise<void>;
   prevTrack: () => Promise<void>;
+  importSingleFile: (filePath: string) => Promise<Track>;
 }
 
 export const usePlayerStore = create<PlayerState>((set, get) => ({
@@ -84,10 +88,11 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   currentTime: 0,
   lyrics: null,
   quality: 'original',
-  activeTab: 'neurid_ai',
+  activeTab: 'home',
   analyser: null,
   resolvedNextTrackUrl: null,
   lastPlayedTrack: null,
+  isTelemetrySetup: false,
 
   setActiveTab: (tab) => set({ activeTab: tab }),
 
@@ -427,6 +432,24 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     }
   },
 
+  setupAudioTelemetry: async () => {
+    if (get().isTelemetrySetup) return;
+
+    await listen<{ currentTime: number }>('audio_tick', (event) => {
+      const time = event.payload.currentTime;
+      set({ currentTime: time });
+
+      // Pre-resolve logic (if > 80% and duration known)
+      const { queue, currentIndex } = get();
+      const track = currentIndex !== null ? queue[currentIndex] : null;
+      if (track && track.duration && time / track.duration > 0.8 && !get().resolvedNextTrackUrl) {
+        get().preResolveNext();
+      }
+    });
+
+    set({ isTelemetrySetup: true });
+  },
+
   preResolveNext: async () => {
     const { queue, currentIndex } = get();
     if (currentIndex === null || currentIndex >= queue.length - 1) return;
@@ -519,6 +542,37 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     const { currentIndex, playTrack } = get();
     if (currentIndex !== null && currentIndex > 0) {
       await playTrack(currentIndex - 1);
+    }
+  },
+
+  importSingleFile: async (filePath: string) => {
+    try {
+      const track = await invoke<Track>('scan_single_file', { path: filePath });
+      const now = Date.now();
+      const entity = {
+        id: track.path,
+        path: track.path,
+        filename: track.title,
+        title: track.title,
+        artist: track.artist || undefined,
+        album: track.album || undefined,
+        duration: track.duration || undefined,
+        scanDate: now
+      };
+      
+      await addOrUpdateTracks([entity]);
+      const updatedLibrary = await getAllTracks();
+      set({ library: updatedLibrary });
+      
+      const { queue } = get();
+      const updatedQueue = [...queue, track];
+      set({ queue: updatedQueue });
+      await invoke('replace_queue', { tracks: updatedQueue });
+      
+      return track;
+    } catch (error) {
+      console.error("Error importing single file:", error);
+      throw error;
     }
   }
 }));

@@ -20,28 +20,16 @@ export const spotifyConnector = {
     }
 
     try {
-      const code = await invoke<string>('authenticate_spotify', { clientId: clientId });
-      console.log('Spotify code received:', code);
-      
-      const authHeader = btoa(`${clientId}:${clientSecret}`);
-      const response = await fetch('https://accounts.spotify.com/api/token', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Basic ${authHeader}`,
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: new URLSearchParams({
-          grant_type: 'authorization_code',
-          code: code,
-          redirect_uri: 'http://127.0.0.1:8888/callback'
-        }).toString()
+      const accessToken = await invoke<string>('authenticate_spotify', { 
+        clientId: clientId,
+        clientSecret: clientSecret
       });
-
-      const data = await response.json();
-      if (data.access_token) {
-        await saveSetting('spotify_access_token', data.access_token);
+      console.log('Spotify token received from backend:', accessToken);
+      
+      if (accessToken) {
+        await saveSetting('spotify_access_token', accessToken);
         alert("¡Conexión con Spotify exitosa!");
-        return data.access_token;
+        return accessToken;
       }
       throw new Error("Token exchange failed");
     } catch (error) {
@@ -95,8 +83,11 @@ export const spotifyConnector = {
         }
       }
 
-      // 3. Backup: si hay token oficial de desarrollador
-      const token = await getSetting('spotify_access_token');
+      // 3. Backup: si hay token oficial de desarrollador o almacenado en Rust
+      let token = await invoke<string | null>('get_token', { key: 'spotify_access_token' }).catch(() => null);
+      if (!token) {
+        token = await getSetting('spotify_access_token');
+      }
       if (token) {
         const metaRes = await fetch(`https://api.spotify.com/v1/playlists/${cleanId}`, {
           headers: { 'Authorization': `Bearer ${token}` }

@@ -20,6 +20,7 @@ pub struct AudioPlayer {
     pub queue: Arc<Mutex<Vec<Track>>>,
     pub current_index: Arc<Mutex<Option<usize>>>,
     pub is_playing: Arc<Mutex<bool>>,
+    pub notify_play: Arc<tokio::sync::Notify>,
 }
 
 impl AudioPlayer {
@@ -42,6 +43,7 @@ impl AudioPlayer {
             queue: Arc::new(Mutex::new(Vec::new())),
             current_index: Arc::new(Mutex::new(None)),
             is_playing: Arc::new(Mutex::new(false)),
+            notify_play: Arc::new(tokio::sync::Notify::new()),
         }
     }
 
@@ -60,6 +62,7 @@ impl AudioPlayer {
         new_sink.play();
 
         *self.is_playing.lock().unwrap() = true;
+        self.notify_play.notify_one();
         drop(sink);
         *self.sink.lock().unwrap() = new_sink;
 
@@ -74,6 +77,7 @@ impl AudioPlayer {
     pub fn resume(&self) {
         self.sink.lock().unwrap().play();
         *self.is_playing.lock().unwrap() = true;
+        self.notify_play.notify_one();
     }
 
     pub fn stop(&self) {

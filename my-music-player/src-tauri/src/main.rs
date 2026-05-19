@@ -1,5 +1,7 @@
 use std::sync::{Arc, Mutex};
 use tauri::State;
+use tauri::Manager;
+use tauri::Emitter;
 use walkdir::WalkDir;
 use lofty::file::TaggedFileExt;
 use lofty::probe::Probe;
@@ -28,7 +30,7 @@ struct AppState {
 }
 
 #[tauri::command]
-async fn initialize_ia(state: State<'_, AppState>) -> Result<String, String> {
+async fn initialize_ia(app_handle: tauri::AppHandle, state: State<'_, AppState>) -> Result<String, String> {
     let ai_backend = state.ai_backend.clone();
     let ai_model = state.ai_model.clone();
 
@@ -38,6 +40,17 @@ async fn initialize_ia(state: State<'_, AppState>) -> Result<String, String> {
         if model_lock.is_some() {
             return Ok("IA ya inicializada".to_string());
         }
+    }
+
+    let mut model_path = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&model_path).map_err(|e| format!("Error creando el directorio de datos: {:?}", e))?;
+    model_path.push("gemma-2b-it-q4_k_m.gguf");
+
+    if !model_path.exists() {
+        return Err(format!(
+            "No se encuentra el archivo 'gemma-2b-it-q4_k_m.gguf'. Por favor, colócalo en la siguiente ruta absoluta de tu sistema operativo: {:?}",
+            model_path
+        ));
     }
 
     tauri::async_runtime::spawn_blocking(move || {
@@ -51,13 +64,6 @@ async fn initialize_ia(state: State<'_, AppState>) -> Result<String, String> {
         // Inicializar Backend
         let backend = LlamaBackend::init().map_err(|e| format!("Error backend: {:?}", e))?;
         *backend_lock = Some(backend);
-
-        // Ruta al modelo
-        let model_path = PathBuf::from("gemma-2b-it-q4_k_m.gguf");
-        
-        if !model_path.exists() {
-            return Err("No se encuentra el archivo 'gemma-2b-it-q4_k_m.gguf' en el directorio raíz. Por favor, descárgalo de HuggingFace.".to_string());
-        }
 
         let model_params = LlamaModelParams::default();
         let model = LlamaModel::load_from_file(backend_lock.as_ref().unwrap(), &model_path, &model_params)
@@ -137,7 +143,43 @@ async fn search_web_music(query: String) -> Result<Vec<serde_json::Value>, Strin
 }
 
 #[tauri::command]
-async fn authenticate_spotify(app_handle: tauri::AppHandle, client_id: String) -> Result<String, String> {
+fn save_token(app_handle: tauri::AppHandle, key: String, token: String) -> Result<(), String> {
+    let mut path = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&path).map_err(|e| e.to_string())?;
+    path.push("config.json");
+
+    let mut config: serde_json::Value = if path.exists() {
+        let file = std::fs::File::open(&path).map_err(|e| e.to_string())?;
+        serde_json::from_reader(file).unwrap_or(serde_json::json!({}))
+    } else {
+        serde_json::json!({})
+    };
+
+    config[key] = serde_json::Value::String(token);
+
+    let file = std::fs::File::create(&path).map_err(|e| e.to_string())?;
+    serde_json::to_writer_pretty(file, &config).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn get_token(app_handle: tauri::AppHandle, key: String) -> Result<Option<String>, String> {
+    let mut path = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    path.push("config.json");
+
+    if !path.exists() {
+        return Ok(None);
+    }
+
+    let file = std::fs::File::open(&path).map_err(|e| e.to_string())?;
+    let config: serde_json::Value = serde_json::from_reader(file).unwrap_or(serde_json::json!({}));
+    
+    let token = config.get(&key).and_then(|v| v.as_str()).map(|s| s.to_string());
+    Ok(token)
+}
+
+#[tauri::command]
+async fn authenticate_spotify(app_handle: tauri::AppHandle, client_id: String, client_secret: String) -> Result<String, String> {
     // 1. URL de autorización de Spotify
     let redirect_uri = "http://127.0.0.1:8888/callback";
     let auth_url = format!(
@@ -155,11 +197,51 @@ async fn authenticate_spotify(app_handle: tauri::AppHandle, client_id: String) -
         oauth::listen_for_oauth_callback(8888)
     })
     .await
-    .map_err(|e| format!("Error en servidor local (hilo): {}", e))?
+    .map_err(|e| format!("Error en ejecución del hilo de inicialización: {}", e))?
     .map_err(|e| format!("Error escuchando callback: {}", e))?;
 
-    // Retornamos el código capturado a modo de prueba.
-    Ok(code)
+    // 4. Intercambiar code por token en Rust
+    let client = reqwest::Client::new();
+    let token_url = "https://accounts.spotify.com/api/token";
+    
+    let params = [
+        ("grant_type", "authorization_code"),
+        ("code", &code),
+        ("redirect_uri", redirect_uri),
+        ("client_id", &client_id),
+        ("client_secret", &client_secret),
+    ];
+
+    let resp = client
+        .post(token_url)
+        .form(&params)
+        .send()
+        .await
+        .map_err(|e| format!("Error en POST de token: {}", e))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let err_text = resp.text().await.unwrap_or_default();
+        return Err(format!("Error en respuesta de token (status {}): {}", status, err_text));
+    }
+
+    let token_data: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("Error deserializando JSON de token: {}", e))?;
+
+    let access_token = token_data["access_token"]
+        .as_str()
+        .ok_or_else(|| "No access_token found in response".to_string())?;
+
+    // Guardar tokens de manera de persistencia local
+    save_token(app_handle.clone(), "spotify_access_token".to_string(), access_token.to_string())?;
+    
+    if let Some(refresh_token) = token_data["refresh_token"].as_str() {
+        save_token(app_handle.clone(), "spotify_refresh_token".to_string(), refresh_token.to_string())?;
+    }
+
+    Ok(access_token.to_string())
 }
 
 #[tauri::command]
@@ -179,11 +261,54 @@ fn add_to_queue(state: State<'_, AppState>, path: String, title: String) -> Resu
 }
 
 #[tauri::command]
-fn replace_queue(state: State<'_, AppState>, tracks: Vec<Track>) -> Result<Vec<Track>, String> {
+fn replace_queue(state: State<'_, AppState>, tracks: Vec<Track>) -> Result<(), String> {
     let player = state.player.lock().unwrap();
     let mut queue = player.queue.lock().unwrap();
-    *queue = tracks;
-    Ok(queue.clone())
+    queue.clear();
+    queue.extend(tracks);
+    Ok(())
+}
+
+#[tauri::command]
+fn scan_single_file(path: String) -> Result<Track, String> {
+    let path_buf = std::path::Path::new(&path);
+    if !path_buf.is_file() {
+        return Err("Ruta no es un archivo válido".to_string());
+    }
+
+    let mut track_title = path_buf.file_stem().unwrap_or_default().to_string_lossy().into_owned();
+    let mut track_artist = None;
+    let mut track_album = None;
+    let mut track_duration = None;
+
+    // Try to extract metadata using Lofty
+    if let Ok(tagged_file) = Probe::open(path_buf).and_then(|p| p.read()) {
+        let properties = tagged_file.properties();
+        track_duration = Some(properties.duration().as_secs_f32());
+
+        if let Some(tag) = tagged_file.primary_tag() {
+            if let Some(title) = tag.title() {
+                track_title = title.into_owned();
+            }
+            track_artist = tag.artist().map(|a| a.into_owned());
+            track_album = tag.album().map(|a| a.into_owned());
+        } else if let Some(tag) = tagged_file.first_tag() {
+            if let Some(title) = tag.title() {
+                track_title = title.into_owned();
+            }
+            track_artist = tag.artist().map(|a| a.into_owned());
+            track_album = tag.album().map(|a| a.into_owned());
+        }
+    }
+
+    Ok(Track {
+        id: uuid::Uuid::new_v4().to_string(),
+        path,
+        title: track_title,
+        artist: track_artist,
+        album: track_album,
+        duration: track_duration,
+    })
 }
 
 #[tauri::command]
@@ -303,16 +428,65 @@ async fn main() {
             ai_backend: Arc::new(Mutex::new(None)),
             ai_model: Arc::new(Mutex::new(None)),
         })
+        .setup(|app| {
+            let app_handle = app.handle().clone();
+            
+            tauri::async_runtime::spawn(async move {
+                loop {
+                    // Check if playing
+                    let is_playing = {
+                        let state = app_handle.state::<AppState>();
+                        let player = state.player.lock().unwrap();
+                        let is_playing_guard = player.is_playing.lock().unwrap();
+                        *is_playing_guard
+                    };
+
+                    if !is_playing {
+                        // Wait until notified that a track has started/resumed playing
+                        let notify = {
+                            let state = app_handle.state::<AppState>();
+                            let player = state.player.lock().unwrap();
+                            player.notify_play.clone()
+                        };
+                        notify.notified().await;
+                        continue;
+                    }
+
+                    // Get current position
+                    let current_time = {
+                        let state = app_handle.state::<AppState>();
+                        let player = state.player.lock().unwrap();
+                        let pos = player.get_pos();
+                        pos.as_secs_f32()
+                    };
+
+                    #[derive(serde::Serialize, Clone)]
+                    struct AudioTickPayload {
+                        #[serde(rename = "currentTime")]
+                        current_time: f32,
+                    }
+
+                    let _ = app_handle.emit("audio_tick", AudioTickPayload { current_time });
+
+                    // Sleep for 250ms
+                    tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+                }
+            });
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             add_to_queue,
             replace_queue,
             scan_local_folder,
+            scan_single_file,
             play_track,
             pause_audio,
             resume_audio,
             stop_audio,
             set_volume,
             authenticate_spotify,
+            save_token,
+            get_token,
             get_playback_position,
             initialize_ia,
             query_ia,
