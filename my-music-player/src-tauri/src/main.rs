@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 use tauri::State;
+use tauri::Manager;
 use walkdir::WalkDir;
 use lofty::file::TaggedFileExt;
 use lofty::probe::Probe;
@@ -28,7 +29,7 @@ struct AppState {
 }
 
 #[tauri::command]
-async fn initialize_ia(state: State<'_, AppState>) -> Result<String, String> {
+async fn initialize_ia(app_handle: tauri::AppHandle, state: State<'_, AppState>) -> Result<String, String> {
     let ai_backend = state.ai_backend.clone();
     let ai_model = state.ai_model.clone();
 
@@ -38,6 +39,17 @@ async fn initialize_ia(state: State<'_, AppState>) -> Result<String, String> {
         if model_lock.is_some() {
             return Ok("IA ya inicializada".to_string());
         }
+    }
+
+    let mut model_path = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&model_path).map_err(|e| format!("Error creando el directorio de datos: {:?}", e))?;
+    model_path.push("gemma-2b-it-q4_k_m.gguf");
+
+    if !model_path.exists() {
+        return Err(format!(
+            "No se encuentra el archivo 'gemma-2b-it-q4_k_m.gguf'. Por favor, colócalo en la siguiente ruta absoluta de tu sistema operativo: {:?}",
+            model_path
+        ));
     }
 
     tauri::async_runtime::spawn_blocking(move || {
@@ -51,13 +63,6 @@ async fn initialize_ia(state: State<'_, AppState>) -> Result<String, String> {
         // Inicializar Backend
         let backend = LlamaBackend::init().map_err(|e| format!("Error backend: {:?}", e))?;
         *backend_lock = Some(backend);
-
-        // Ruta al modelo
-        let model_path = PathBuf::from("gemma-2b-it-q4_k_m.gguf");
-        
-        if !model_path.exists() {
-            return Err("No se encuentra el archivo 'gemma-2b-it-q4_k_m.gguf' en el directorio raíz. Por favor, descárgalo de HuggingFace.".to_string());
-        }
 
         let model_params = LlamaModelParams::default();
         let model = LlamaModel::load_from_file(backend_lock.as_ref().unwrap(), &model_path, &model_params)
@@ -179,11 +184,12 @@ fn add_to_queue(state: State<'_, AppState>, path: String, title: String) -> Resu
 }
 
 #[tauri::command]
-fn replace_queue(state: State<'_, AppState>, tracks: Vec<Track>) -> Result<Vec<Track>, String> {
+fn replace_queue(state: State<'_, AppState>, tracks: Vec<Track>) -> Result<(), String> {
     let player = state.player.lock().unwrap();
     let mut queue = player.queue.lock().unwrap();
-    *queue = tracks;
-    Ok(queue.clone())
+    queue.clear();
+    queue.extend(tracks);
+    Ok(())
 }
 
 #[tauri::command]
