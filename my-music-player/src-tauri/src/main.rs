@@ -1,6 +1,7 @@
 use std::sync::{Arc, Mutex};
 use tauri::State;
 use tauri::Manager;
+use tauri::Emitter;
 use walkdir::WalkDir;
 use lofty::file::TaggedFileExt;
 use lofty::probe::Probe;
@@ -308,6 +309,52 @@ async fn main() {
             player: Mutex::new(AudioPlayer::new()),
             ai_backend: Arc::new(Mutex::new(None)),
             ai_model: Arc::new(Mutex::new(None)),
+        })
+        .setup(|app| {
+            let app_handle = app.handle().clone();
+            
+            tauri::async_runtime::spawn(async move {
+                loop {
+                    // Check if playing
+                    let is_playing = {
+                        let state = app_handle.state::<AppState>();
+                        let player = state.player.lock().unwrap();
+                        let is_playing_guard = player.is_playing.lock().unwrap();
+                        *is_playing_guard
+                    };
+
+                    if !is_playing {
+                        // Wait until notified that a track has started/resumed playing
+                        let notify = {
+                            let state = app_handle.state::<AppState>();
+                            let player = state.player.lock().unwrap();
+                            player.notify_play.clone()
+                        };
+                        notify.notified().await;
+                        continue;
+                    }
+
+                    // Get current position
+                    let current_time = {
+                        let state = app_handle.state::<AppState>();
+                        let player = state.player.lock().unwrap();
+                        let pos = player.get_pos();
+                        pos.as_secs_f32()
+                    };
+
+                    #[derive(serde::Serialize, Clone)]
+                    struct AudioTickPayload {
+                        #[serde(rename = "currentTime")]
+                        current_time: f32,
+                    }
+
+                    let _ = app_handle.emit("audio_tick", AudioTickPayload { current_time });
+
+                    // Sleep for 250ms
+                    tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+                }
+            });
+            Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             add_to_queue,
