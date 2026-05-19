@@ -95,18 +95,17 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     try {
       const tracks = await getAllTracks();
       set({ library: tracks });
-      const mappedQueue = tracks.map(t => ({ 
-        id: t.path, 
+      const mappedQueue: Track[] = tracks.map(t => ({ 
+        id: t.id, 
         path: t.path, 
         title: t.title || t.filename,
         artist: t.artist,
+        album: t.album,
         duration: t.duration
       }));
       set({ queue: mappedQueue });
 
-      for (const t of mappedQueue) {
-         await invoke('add_to_queue', { path: t.path, title: t.title });
-      }
+      await invoke('replace_queue', { tracks: mappedQueue });
     } catch (e) {
       console.error("Failed to load library from IndexedDB", e);
     }
