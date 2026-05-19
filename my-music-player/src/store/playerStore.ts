@@ -1,26 +1,68 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
-import { addOrUpdateTracks, getAllTracks, TrackEntity } from '../db';
+import { addOrUpdateTracks, getAllTracks, TrackEntity, PlaylistEntity, savePlaylist, getAllPlaylists, getPlaylistTracks, deletePlaylist, createEmptyPlaylist, addTrackToPlaylist, removeTrackFromPlaylist } from '../db';
+import { pipedResolver } from '../services/pipedResolver';
+import { spotifyConnector } from '../services/spotifyConnector';
+import { deezerConnector } from '../services/deezerConnector';
+import { ytMusicConnector } from '../services/ytMusicConnector';
+import { lyricsService, LyricsData } from '../services/lyricsService';
 
 export interface Track {
   id: string;
   path: string;
   title: string;
+  artist?: string;
+  album?: string;
+  isRemote?: boolean;
+  coverUrl?: string;
+  duration?: number;
 }
 
 interface PlayerState {
   queue: Track[];
   library: TrackEntity[];
+  savedPlaylists: PlaylistEntity[];
+  searchResults: Track[];
   currentIndex: number | null;
   isPlaying: boolean;
   volume: number;
+  isResolving: boolean;
+  currentTime: number;
+  lyrics: LyricsData | null;
+  quality: '128k' | '256k' | 'original';
+  activeTab: string;
+  analyser: AnalyserNode | null;
+  resolvedNextTrackUrl: string | null;
+  lastPlayedTrack: Track | null;
+
+  // UI Actions
+  setActiveTab: (tab: string) => void;
 
   // Library Actions
   loadLibrary: () => Promise<void>;
   scanLocalFolder: (folderPath: string) => Promise<void>;
+  
+  // Playlist Actions
+  loadSavedPlaylists: () => Promise<void>;
+  importSpotifyPlaylist: (playlistId: string) => Promise<void>;
+  importDeezerPlaylist: (playlistId: string) => Promise<void>;
+  loadPlaylistToQueue: (playlistId: string) => Promise<void>;
+  removePlaylist: (playlistId: string) => Promise<void>;
+  createPlaylist: (title: string) => Promise<void>;
+  addTrackToPlaylist: (playlistId: string, track: Track) => Promise<void>;
+  removeTrackFromPlaylist: (id: string) => Promise<void>;
+
+  // Search Actions
+  searchYouTube: (query: string) => Promise<void>;
+
+  // Playback Actions
+  updateTime: () => Promise<void>;
+  preResolveNext: () => Promise<void>;
+  fetchLyrics: () => Promise<void>;
+  setQuality: (quality: '128k' | '256k' | 'original') => void;
 
   // Queue Actions
-  addToQueue: (path: string, title: string) => Promise<void>;
+  addToQueue: (path: string, title: string, artist?: string, isRemote?: boolean) => Promise<void>;
   playTrack: (index: number) => Promise<void>;
   pause: () => Promise<void>;
   resume: () => Promise<void>;
@@ -33,77 +75,249 @@ interface PlayerState {
 export const usePlayerStore = create<PlayerState>((set, get) => ({
   queue: [],
   library: [],
+  savedPlaylists: [],
+  searchResults: [],
   currentIndex: null,
   isPlaying: false,
   volume: 1.0,
+  isResolving: false,
+  currentTime: 0,
+  lyrics: null,
+  quality: 'original',
+  activeTab: 'neurid_ai',
+  analyser: null,
+  resolvedNextTrackUrl: null,
+  lastPlayedTrack: null,
+
+  setActiveTab: (tab) => set({ activeTab: tab }),
 
   loadLibrary: async () => {
     try {
       const tracks = await getAllTracks();
       set({ library: tracks });
-
-      // Also reconstruct the queue and send to backend so they stay in sync
-      // We will just clear the queue in Rust and add all.
-      // But we don't have a clear_queue method in Rust.
-      // Wait, we can just set the Zustand queue to match the library for UI purposes
-      // and when they click playTrack we ensure it's in the queue?
-      // Actually, if we use `addToQueue` for every loaded track, it will flood Tauri commands.
-      // Let's just set the queue state to the library for UI, and when `playTrack` is called on the library, it needs to work.
-
-      // We need to map TrackEntity to Track for the queue.
-      const mappedQueue = tracks.map(t => ({ id: t.path, path: t.path, title: t.title || t.filename }));
+      const mappedQueue = tracks.map(t => ({ 
+        id: t.path, 
+        path: t.path, 
+        title: t.title || t.filename,
+        artist: t.artist,
+        duration: t.duration
+      }));
       set({ queue: mappedQueue });
 
-      // We have to add to the backend queue to make index play work. Let's do it sequentially or maybe just rely on users queuing explicitly?
-      // The original scanLocalFolder sets the Rust queue. If we restart, the Rust queue is empty.
-      // We can add a simple `sync_queue` command or just queue them one by one?
-      // A better way is to just do a loop of addToQueue.
       for (const t of mappedQueue) {
          await invoke('add_to_queue', { path: t.path, title: t.title });
       }
-
     } catch (e) {
       console.error("Failed to load library from IndexedDB", e);
     }
   },
 
+  loadSavedPlaylists: async () => {
+    try {
+      const playlists = await getAllPlaylists();
+      set({ savedPlaylists: playlists });
+    } catch (e) {
+      console.error("Failed to load playlists", e);
+    }
+  },
+
   scanLocalFolder: async (folderPath) => {
     try {
-      // Fetch new tracks via Rust backend scanner (this also sets Rust queue!)
-      const backendTracks = await invoke<Track[]>('scan_local_folder', { folderPath });
-
+      const backendTracks = await invoke<Track[]>('scan_local_folder', { folder_path: folderPath });
       const now = Date.now();
       const newEntities: TrackEntity[] = backendTracks.map(t => ({
         id: t.path,
         path: t.path,
         filename: t.title,
         title: t.title,
+        artist: t.artist,
+        album: t.album,
+        duration: t.duration,
         scanDate: now
       }));
 
-      // Persist to Dexie
       await addOrUpdateTracks(newEntities);
-
-      // Update Zustand library state AND queue state to fix UI controls
       const updatedLibrary = await getAllTracks();
       set({
         library: updatedLibrary,
-        queue: backendTracks, // update queue for the player UI
+        queue: backendTracks,
         currentIndex: null,
         isPlaying: false
       });
-
     } catch (error) {
       console.error("Error scanning folder:", error);
     }
   },
 
-  addToQueue: async (path, title) => {
+  importSpotifyPlaylist: async (playlistId) => {
     try {
-      const newQueue = await invoke<Track[]>('add_to_queue', { path, title });
-      set({ queue: newQueue });
+      set({ isResolving: true });
+      const data = await spotifyConnector.getPlaylistMetadataAndTracks(playlistId);
+      
+      const playlist: PlaylistEntity = {
+        id: `spotify_${playlistId}`,
+        title: data.name,
+        source: 'Spotify',
+        importDate: Date.now(),
+        coverUrl: data.coverUrl || data.tracks[0]?.coverUrl
+      };
 
-      if (get().currentIndex === null && newQueue.length === 1) {
+      const playlistTracks = data.tracks.map((t, index) => ({
+        id: `${playlist.id}_${t.id}`,
+        playlistId: playlist.id,
+        trackId: t.id,
+        title: t.name,
+        artist: t.artists.join(', '),
+        isRemote: true,
+        coverUrl: t.coverUrl,
+        order: index
+      }));
+
+      await savePlaylist(playlist, playlistTracks);
+      await get().loadSavedPlaylists();
+
+      const newTracks: Track[] = data.tracks.map(t => ({
+        id: `spotify_${t.id}`,
+        path: '', 
+        title: t.name,
+        artist: t.artists.join(', '),
+        isRemote: true,
+        coverUrl: t.coverUrl
+      }));
+
+      set({ queue: [...get().queue, ...newTracks], isResolving: false });
+    } catch (error) {
+      console.error("Error importing Spotify playlist:", error);
+      set({ isResolving: false });
+    }
+  },
+
+  importDeezerPlaylist: async (playlistId) => {
+    try {
+      set({ isResolving: true });
+      const tracks = await deezerConnector.getPlaylistTracks(playlistId);
+      const meta = await deezerConnector.getPlaylistMetadata(playlistId);
+      
+      const playlist: PlaylistEntity = {
+        id: `deezer_${playlistId}`,
+        title: meta.title,
+        source: 'Deezer',
+        importDate: Date.now(),
+        coverUrl: meta.coverUrl || tracks[0]?.albumCover
+      };
+
+      const playlistTracks = tracks.map((t, index) => ({
+        id: `${playlist.id}_${t.id}`,
+        playlistId: playlist.id,
+        trackId: t.id,
+        title: t.title,
+        artist: t.artist,
+        isRemote: true,
+        coverUrl: t.albumCover,
+        order: index
+      }));
+
+      await savePlaylist(playlist, playlistTracks);
+      await get().loadSavedPlaylists();
+
+      const newTracks: Track[] = tracks.map(t => ({
+        id: `deezer_${t.id}`,
+        path: '', 
+        title: t.title,
+        artist: t.artist,
+        isRemote: true,
+        coverUrl: t.albumCover
+      }));
+
+      set({ queue: [...get().queue, ...newTracks], isResolving: false });
+    } catch (error) {
+      console.error("Error importing Deezer playlist:", error);
+      set({ isResolving: false });
+    }
+  },
+
+  searchYouTube: async (query) => {
+    try {
+      set({ isResolving: true, activeTab: 'search' });
+      const results = await ytMusicConnector.searchTracks(query);
+      const mapped = results.map(t => ({
+        id: t.videoId,
+        path: '', 
+        title: t.title,
+        artist: t.uploaderName,
+        isRemote: true,
+        coverUrl: t.thumbnail
+      }));
+      set({ searchResults: mapped, isResolving: false });
+    } catch (error) {
+      console.error("Error searching YouTube:", error);
+      set({ isResolving: false });
+    }
+  },
+
+  loadPlaylistToQueue: async (playlistId) => {
+    try {
+      const tracks = await getPlaylistTracks(playlistId);
+      const mappedTracks: Track[] = tracks.map(t => ({
+        id: t.trackId,
+        path: t.path || '',
+        title: t.title,
+        artist: t.artist,
+        isRemote: t.isRemote,
+        coverUrl: t.coverUrl
+      }));
+      
+      set({ queue: mappedTracks, currentIndex: null });
+      if (mappedTracks.length > 0) {
+        await get().playTrack(0);
+      }
+    } catch (e) {
+      console.error("Error loading playlist to queue", e);
+    }
+  },
+
+  removePlaylist: async (playlistId) => {
+    await deletePlaylist(playlistId);
+    await get().loadSavedPlaylists();
+  },
+
+  createPlaylist: async (title) => {
+    await createEmptyPlaylist(title);
+    await get().loadSavedPlaylists();
+  },
+
+  addTrackToPlaylist: async (playlistId, track) => {
+    await addTrackToPlaylist(playlistId, {
+      playlistId,
+      trackId: track.id,
+      title: track.title,
+      artist: track.artist,
+      isRemote: !!track.isRemote,
+      path: track.path,
+      coverUrl: track.coverUrl,
+      order: 0 // Will be set by DB helper
+    });
+    // If the currently viewed playlist is this one, we might want to refresh.
+    // For now, simple refresh of playlists list.
+    await get().loadSavedPlaylists();
+  },
+
+  removeTrackFromPlaylist: async (id) => {
+    await removeTrackFromPlaylist(id);
+    await get().loadSavedPlaylists();
+  },
+
+  addToQueue: async (path, title, artist, isRemote) => {
+    try {
+      if (!isRemote) {
+        const newQueue = await invoke<Track[]>('add_to_queue', { path, title });
+        set({ queue: newQueue });
+      } else {
+        const track: Track = { id: `remote_${Date.now()}`, path, title, artist, isRemote: true };
+        set({ queue: [...get().queue, track] });
+      }
+
+      if (get().currentIndex === null && get().queue.length === 1) {
         await get().playTrack(0);
       }
     } catch (error) {
@@ -112,16 +326,143 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   },
 
   playTrack: async (index) => {
+    const { queue, resolvedNextTrackUrl } = get();
+    const track = queue[index];
+    if (!track) return;
+
+    set({ lastPlayedTrack: track, resolvedNextTrackUrl: null });
+
+    // Stop existing HTML audio if any
+    const existingAudio = (window as any)._neuridAudio as HTMLAudioElement;
+    if (existingAudio) {
+      existingAudio.pause();
+      existingAudio.src = '';
+    }
+
     try {
-      await invoke('play_track', { index });
-      set({ currentIndex: index, isPlaying: true });
+      let playPath = track.path;
+
+      if (track.isRemote) {
+        if (resolvedNextTrackUrl) {
+          playPath = resolvedNextTrackUrl;
+        } else {
+          set({ isResolving: true });
+          const videoId = await pipedResolver.findBestMatch(track.title, track.artist || '');
+          if (videoId) {
+            const streamUrl = await pipedResolver.resolve(videoId);
+            if (streamUrl) {
+              playPath = streamUrl;
+            } else {
+              throw new Error("No se pudo resolver el stream de audio");
+            }
+          } else {
+            throw new Error("No se encontró la canción en YouTube");
+          }
+          set({ isResolving: false });
+        }
+
+        // HTML5 Playback for Remote
+        let audio = (window as any)._neuridAudio as HTMLAudioElement;
+        if (!audio) {
+          audio = new Audio();
+          (window as any)._neuridAudio = audio;
+          
+          const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+          const ctx = new AudioCtx();
+          const analyser = ctx.createAnalyser();
+          const source = ctx.createMediaElementSource(audio);
+          source.connect(analyser);
+          analyser.connect(ctx.destination);
+          set({ analyser });
+        }
+        
+        audio.src = playPath;
+        audio.volume = get().volume;
+        await audio.play();
+        
+        // Notify Rust that we are playing externally so it stops its own queue
+        await invoke('stop_audio'); 
+        
+        set({ currentIndex: index, isPlaying: true, currentTime: 0 });
+        get().fetchLyrics();
+
+        // Time polling for HTML audio
+        audio.ontimeupdate = () => {
+          set({ currentTime: audio.currentTime });
+        };
+        
+      } else {
+        // Rust Playback for Local
+        set({ analyser: null }); // No analyser for local Rust playback for now
+        await invoke('play_track', { index, path: playPath }); 
+        set({ currentIndex: index, isPlaying: true, currentTime: 0 });
+        get().fetchLyrics();
+      }
     } catch (error) {
       console.error("Error playing track:", error);
+      set({ isResolving: false });
     }
   },
 
+  updateTime: async () => {
+    if (!get().isPlaying) return;
+    const { currentTime, queue, currentIndex } = get();
+    const track = currentIndex !== null ? queue[currentIndex] : null;
+    
+    // Pre-resolve logic (if > 80% and duration known)
+    if (track && track.duration && currentTime / track.duration > 0.8 && !get().resolvedNextTrackUrl) {
+      get().preResolveNext();
+    }
+
+    const audio = (window as any)._neuridAudio as HTMLAudioElement;
+    if (audio && audio.src && !audio.paused) {
+        set({ currentTime: audio.currentTime });
+        return;
+    }
+    
+    try {
+      const time = await invoke<number>('get_playback_position');
+      set({ currentTime: time });
+    } catch (e) {
+      console.error("Error updating time", e);
+    }
+  },
+
+  preResolveNext: async () => {
+    const { queue, currentIndex } = get();
+    if (currentIndex === null || currentIndex >= queue.length - 1) return;
+    
+    const nextTrack = queue[currentIndex + 1];
+    if (!nextTrack.isRemote) return;
+
+    try {
+      const videoId = await pipedResolver.findBestMatch(nextTrack.title, nextTrack.artist || '');
+      if (videoId) {
+        const streamUrl = await pipedResolver.resolve(videoId);
+        set({ resolvedNextTrackUrl: streamUrl });
+        console.log("Pre-resolved next track:", nextTrack.title);
+      }
+    } catch (e) {
+      console.warn("Failed to pre-resolve next track", e);
+    }
+  },
+
+  fetchLyrics: async () => {
+    const track = get().queue[get().currentIndex ?? -1];
+    if (!track) return;
+    
+    set({ lyrics: null });
+    const data = await lyricsService.getLyrics(track.title, track.artist || '', track.duration);
+    set({ lyrics: data });
+  },
+
+  setQuality: (quality) => set({ quality }),
+
   pause: async () => {
     try {
+      const audio = (window as any)._neuridAudio as HTMLAudioElement;
+      if (audio && !audio.paused) audio.pause();
+      
       await invoke('pause_audio');
       set({ isPlaying: false });
     } catch (error) {
@@ -131,6 +472,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   resume: async () => {
     try {
+      const audio = (window as any)._neuridAudio as HTMLAudioElement;
+      if (audio && audio.src && audio.paused) await audio.play();
+      
       await invoke('resume_audio');
       set({ isPlaying: true });
     } catch (error) {
@@ -140,6 +484,12 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   stop: async () => {
     try {
+      const audio = (window as any)._neuridAudio as HTMLAudioElement;
+      if (audio) {
+        audio.pause();
+        audio.src = '';
+      }
+      
       await invoke('stop_audio');
       set({ isPlaying: false, currentIndex: null });
     } catch (error) {
@@ -149,6 +499,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   setVolume: async (volume) => {
     try {
+      const audio = (window as any)._neuridAudio as HTMLAudioElement;
+      if (audio) audio.volume = volume;
+      
       await invoke('set_volume', { volume });
       set({ volume });
     } catch (error) {

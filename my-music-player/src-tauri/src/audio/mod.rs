@@ -9,6 +9,9 @@ pub struct Track {
     pub id: String,
     pub path: String,
     pub title: String,
+    pub artist: Option<String>,
+    pub album: Option<String>,
+    pub duration: Option<f32>,
 }
 
 pub struct AudioPlayer {
@@ -80,5 +83,9 @@ impl AudioPlayer {
 
     pub fn set_volume(&self, volume: f32) {
         self.sink.lock().unwrap().set_volume(volume);
+    }
+
+    pub fn get_pos(&self) -> std::time::Duration {
+        self.sink.lock().unwrap().get_pos()
     }
 }

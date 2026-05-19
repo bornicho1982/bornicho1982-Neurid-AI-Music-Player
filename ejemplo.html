@@ -1,0 +1,1999 @@
+import React, { useState, useEffect, useRef } from 'react';
+import {
+Library,
+ListMusic,
+Compass,
+Cpu,
+Settings,
+Search,
+Play,
+Pause,
+SkipBack,
+SkipForward,
+Volume2,
+Shuffle,
+Repeat,
+List,
+FolderPlus,
+MonitorSpeaker,
+Mic,
+Link2,
+CheckCircle2,
+User,
+Sparkles,
+Send,
+Loader2,
+X,
+Terminal,
+Wand2,
+Brain,
+Layers,
+Radar,
+Flame,
+BookOpen
+} from 'lucide-react';
+
+const App = () => {
+const [activeTab, setActiveTab] = useState('neurid_ai');
+const [isPlaying, setIsPlaying] = useState(false);
+
+// --- Nuevos estados para la Búsqueda Inteligente con Gemini ---
+const [searchQuery, setSearchQuery] = useState("");
+const [isSearching, setIsSearching] = useState(false);
+const [searchResults, setSearchResults] = useState(null);
+const [showResults, setShowResults] = useState(false);
+
+// --- Nuevos estados para AI Track Insights (Gemini) ---
+const [showInsights, setShowInsights] = useState(false);
+const [insightsData, setInsightsData] = useState(null);
+const [isFetchingInsights, setIsFetchingInsights] = useState(false);
+
+// --- Nuevos estados para la Consola de Desarrollador (Gemini) ---
+const [showDevModal, setShowDevModal] = useState(false);
+const [devInput, setDevInput] = useState("");
+const [isDevGenerating, setIsDevGenerating] = useState(false);
+const [devMessages, setDevMessages] = useState([
+{ role: 'ai', content: 'Terminal de Ingeniería inicializada. Soy tu asistente experto en Rust y Tauri. ¿En qué módulo de
+Neurid Studio necesitas asistencia de código hoy?' }
+]);
+
+const handleDevSubmit = async () => {
+if (!devInput.trim() || isDevGenerating) return;
+
+const userMsg = { role: 'user', content: devInput };
+setDevMessages(prev => [...prev, userMsg]);
+setDevInput("");
+setIsDevGenerating(true);
+
+const apiKey = "";
+const systemInstruction = `Eres el Asistente de Ingeniería Principal de Neurid Studio, un experto senior en Rust, Tauri
+y React.
+El desarrollador te hará preguntas sobre el código, debugeo del motor de audio local, o cómo estructurar llamadas IPC
+entre Rust y React.
+Responde de forma concisa, técnica y directa. Usa texto plano, pero puedes estructurar listas o dar pequeñas
+explicaciones claras de código.`;
+
+const conversationHistory = devMessages.slice(-4).map(m => `${m.role}: ${m.content}`).join('\n');
+const fullPrompt = `Historial:\n${conversationHistory}\n\nUser: ${devInput}`;
+
+const payload = {
+contents: [{ parts: [{ text: fullPrompt }] }],
+systemInstruction: { parts: [{ text: systemInstruction }] },
+};
+
+const maxRetries = 5;
+const delays = [1000, 2000, 4000, 8000, 16000];
+let attempt = 0;
+let success = false;
+
+while (attempt < maxRetries && !success) { try { const response=await
+  fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`,
+  { method: 'POST' , headers: { 'Content-Type' : 'application/json' }, body: JSON.stringify(payload) }); if
+  (!response.ok) throw new Error("API Error"); const data=await response.json(); const
+  textResponse=data.candidates?.[0]?.content?.parts?.[0]?.text; if (textResponse) { setDevMessages(prev=> [...prev, {
+  role: 'ai', content: textResponse }]);
+  success = true;
+  } else {
+  throw new Error("Respuesta inválida");
+  }
+  } catch (error) {
+  attempt++;
+  if (attempt >= maxRetries) {
+  setDevMessages(prev => [...prev, { role: 'ai', content: "Error en el entorno de desarrollo. No se pudo conectar con el
+  servidor de compilación neuronal." }]);
+  } else {
+  await new Promise(resolve => setTimeout(resolve, delays[attempt - 1]));
+  }
+  }
+  }
+  setIsDevGenerating(false);
+  };
+
+  // --- Función para obtener Análisis de la Pista actual ---
+  const handleTrackInsights = async () => {
+  if (showInsights) {
+  setShowInsights(false);
+  return;
+  }
+  setShowInsights(true);
+  if (insightsData || isFetchingInsights) return; // Si ya lo cargó, no vuelve a llamar a la API
+
+  setIsFetchingInsights(true);
+  const apiKey = "";
+  const systemInstruction = `Eres un experto analista musical y crítico cibernético de Neurid Studio.
+  El usuario te pedirá información sobre una canción que está escuchando.
+  Si la canción parece ficticia o muy de nicho (como "SYNTHETIC ECHOES" de "AURORA"), inventa un 'lore' o historia
+  creíble y detallada en estilo cyberpunk/synthwave.
+  Devuelve SIEMPRE y ÚNICAMENTE un JSON válido con la siguiente estructura estricta:
+  {
+  "genres": ["Género 1", "Género 2"],
+  "mood": "Descripción breve del estado de ánimo (ej. oscuro, enérgico, melancólico)",
+  "trivia": "Un dato curioso o técnico interesante sobre la canción, producción o el artista",
+  "meaning": "Breve interpretación del significado o la sensación que transmite la pista"
+  }`;
+
+  // Como demostración, analizamos la canción que está fijada en el reproductor base
+  const payload = {
+  contents: [{ parts: [{ text: "Analiza la canción SYNTHETIC ECHOES de AURORA." }] }],
+  systemInstruction: { parts: [{ text: systemInstruction }] },
+  generationConfig: { responseMimeType: "application/json" }
+  };
+
+  const maxRetries = 5;
+  const delays = [1000, 2000, 4000, 8000, 16000];
+  let attempt = 0;
+  let success = false;
+
+  while (attempt < maxRetries && !success) { try { const response=await
+    fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`,
+    { method: 'POST' , headers: { 'Content-Type' : 'application/json' }, body: JSON.stringify(payload) }); if
+    (!response.ok) throw new Error("API Error"); const data=await response.json(); const
+    text=data.candidates?.[0]?.content?.parts?.[0]?.text; if (text) { setInsightsData(JSON.parse(text)); success=true; }
+    else { throw new Error("Respuesta JSON inválida"); } } catch (error) { attempt++; if (attempt>= maxRetries) {
+    console.error("Fallo definitivo en insights neuronales:", error);
+    setInsightsData(null);
+    } else {
+    await new Promise(resolve => setTimeout(resolve, delays[attempt - 1]));
+    }
+    }
+    }
+    setIsFetchingInsights(false);
+    };
+
+    const handleGlobalSearch = async () => {
+    if (!searchQuery.trim()) return;
+    setIsSearching(true);
+    setShowResults(true);
+    setSearchResults(null);
+
+    const apiKey = "";
+    const systemInstruction = `Eres el motor de búsqueda musical inteligente de Neurid Studio.
+    El usuario buscará conceptos abstractos, estados de ánimo, géneros o situaciones específicas.
+    Devuelve SIEMPRE y ÚNICAMENTE un JSON con una matriz de 4 resultados musicales que coincidan perfectamente con la
+    intención de búsqueda.
+    Usa esta estructura estricta:
+    {
+    "results": [
+    { "title": "Nombre de la canción real", "artist": "Artista real", "reason": "Breve justificación de por qué encaja"
+    }
+    ]
+    }`;
+
+    const payload = {
+    contents: [{ parts: [{ text: searchQuery }] }],
+    systemInstruction: { parts: [{ text: systemInstruction }] },
+    generationConfig: { responseMimeType: "application/json" }
+    };
+
+    // Implementación de backoff exponencial para estabilidad de API
+    const maxRetries = 5;
+    const delays = [1000, 2000, 4000, 8000, 16000];
+    let attempt = 0;
+    let success = false;
+
+    while (attempt < maxRetries && !success) { try { const response=await
+      fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`,
+      { method: 'POST' , headers: { 'Content-Type' : 'application/json' }, body: JSON.stringify(payload) }); if
+      (!response.ok) throw new Error("API Error"); const data=await response.json(); const
+      text=data.candidates?.[0]?.content?.parts?.[0]?.text; if (text) { setSearchResults(JSON.parse(text).results);
+      success=true; } else { throw new Error("Respuesta JSON inválida"); } } catch (error) { attempt++; if (attempt>=
+      maxRetries) {
+      console.error("Fallo definitivo en la búsqueda neuronal:", error);
+      setSearchResults([]);
+      } else {
+      await new Promise(resolve => setTimeout(resolve, delays[attempt - 1]));
+      }
+      }
+      }
+      setIsSearching(false);
+      };
+
+      // Vistas de la aplicación
+      const renderContent = () => {
+      switch (activeTab) {
+      case 'neurid_ai':
+      return
+      <NeuridAIView />;
+      case 'library':
+      return
+      <LibraryView />;
+      case 'playlists':
+      return
+      <PlaylistsView />;
+      case 'discover':
+      return
+      <DiscoverView />;
+      case 'integrations':
+      return
+      <IntegrationsView />;
+      case 'settings':
+      return
+      <SettingsView />;
+      default:
+      return
+      <NeuridAIView />;
+      }
+      };
+
+      return (
+      <div className="flex h-screen w-full bg-[#0d1117] text-white font-sans overflow-hidden">
+
+        {/* Sidebar */}
+        <aside
+          className="w-64 bg-[#121620]/50 backdrop-blur-sm border-r border-white/5 flex flex-col justify-between z-10 relative">
+          <div>
+            {/* Logo */}
+            <div className="p-6 flex items-center gap-3">
+              <div
+                className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-400 to-purple-600 flex items-center justify-center shadow-[0_0_15px_rgba(52,211,153,0.4)]">
+                <span className="font-bold text-white text-lg">N</span>
+              </div>
+              <h1 className="font-semibold text-xl tracking-wide">NEURID <span
+                  className="font-light opacity-70">STUDIO</span></h1>
+            </div>
+
+            {/* Navigation */}
+            <nav className="mt-6 px-4 space-y-2">
+              <NavItem icon={<Library size={20} />} label="Library" active={activeTab === 'library'} onClick={() =>
+              setActiveTab('library')} />
+              <NavItem icon={<ListMusic size={20} />} label="Playlists" active={activeTab === 'playlists'} onClick={()
+              => setActiveTab('playlists')} />
+              <NavItem icon={<Compass size={20} />} label="Discover" active={activeTab === 'discover'} onClick={() =>
+              setActiveTab('discover')} />
+              <div className="my-4 border-t border-white/5"></div>
+              <NavItem icon={<Cpu size={20} />}
+              label="Neurid AI"
+              active={activeTab === 'neurid_ai'}
+              onClick={() => setActiveTab('neurid_ai')}
+              isNeon
+              />
+              <NavItem icon={<Link2 size={20} />} label="Vincular Cuentas" active={activeTab === 'integrations'}
+              onClick={() => setActiveTab('integrations')} />
+              <NavItem icon={<Settings size={20} />} label="Settings" active={activeTab === 'settings'} onClick={() =>
+              setActiveTab('settings')} />
+            </nav>
+          </div>
+
+          {/* User Profile */}
+          <div onClick={()=> setShowDevModal(true)} className="p-6 border-t border-white/5 flex items-center gap-3
+            cursor-pointer hover:bg-white/5 transition-colors relative group">
+            <div
+              className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-emerald-500/20 group-hover:text-emerald-400 transition-colors">
+              <Terminal size={20} className="text-gray-400 group-hover:text-emerald-400" />
+            </div>
+            <div>
+              <p className="text-sm font-medium flex items-center gap-2">Modo Desarrollador
+                <Sparkles size={12} className="text-emerald-400" />
+              </p>
+              <p className="text-xs text-emerald-400">Tauri Core Activo</p>
+            </div>
+            {/* Tooltip hint */}
+            <div
+              className="absolute -top-10 left-6 bg-black text-xs text-emerald-400 px-3 py-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none border border-emerald-500/30">
+              Abrir Consola Dev IA ✨
+            </div>
+          </div>
+        </aside>
+
+        {/* Main Content Area */}
+        <main className="flex-1 relative flex flex-col h-full overflow-hidden">
+          {/* Top Header / Search */}
+          <header className="p-8 pb-4 flex justify-between items-center z-10 relative">
+            <div className="relative w-full max-w-2xl group">
+              <div
+                className="absolute -inset-0.5 bg-gradient-to-r from-emerald-500 to-purple-600 rounded-full blur opacity-30 group-hover:opacity-60 transition duration-500">
+              </div>
+              <div
+                className="relative bg-[#161b26] rounded-full flex items-center px-6 py-3 border border-white/10 shadow-lg">
+                <input type="text" value={searchQuery} onChange={(e)=> setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleGlobalSearch()}
+                placeholder="Búsqueda con IA ✨: ej. 'Canciones electrónicas para entrenar'..."
+                className="bg-transparent border-none outline-none w-full text-gray-200 placeholder-gray-500 text-sm"
+                />
+                {isSearching ? (
+                <Loader2 size={18} className="text-emerald-400 ml-2 animate-spin shrink-0" />
+                ) : (
+                <button onClick={handleGlobalSearch}
+                  className="focus:outline-none hover:text-emerald-400 transition-colors shrink-0">
+                  <Sparkles size={18} className="text-emerald-400 ml-2" />
+                </button>
+                )}
+              </div>
+
+              {/* Panel Flotante de Resultados de Búsqueda IA */}
+              {showResults && (
+              <div
+                className="absolute top-full left-0 w-full mt-4 bg-[#121620]/95 backdrop-blur-2xl border border-emerald-500/30 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] p-5 z-50 animate-in fade-in slide-in-from-top-2">
+                <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/10">
+                  <h4 className="text-sm font-bold text-emerald-400 flex items-center gap-2">
+                    <Sparkles size={16} /> Resultados Neuronales (Gemini AI)
+                  </h4>
+                  <button onClick={()=> setShowResults(false)} className="text-gray-500 hover:text-white
+                    transition-colors bg-white/5 p-1.5 rounded-md">
+                    <X size={16} />
+                  </button>
+                </div>
+
+                {isSearching ? (
+                <div className="flex flex-col items-center justify-center py-10 text-gray-400">
+                  <Loader2 size={36} className="animate-spin text-emerald-500 mb-4" />
+                  <p className="text-sm animate-pulse">Traduciendo tu 'vibra' en música...</p>
+                </div>
+                ) : searchResults && searchResults.length > 0 ? (
+                <div className="space-y-3">
+                  {searchResults.map((result, idx) => (
+                  <div key={idx}
+                    className="flex items-center gap-4 bg-white/5 hover:bg-white/10 p-3 rounded-xl border border-transparent hover:border-emerald-500/30 transition-all cursor-pointer group shadow-sm">
+                    <div
+                      className="w-12 h-12 bg-black/40 rounded-lg flex items-center justify-center text-gray-400 group-hover:text-emerald-400 group-hover:bg-emerald-500/10 group-hover:shadow-[0_0_15px_rgba(52,211,153,0.3)] transition-all shrink-0">
+                      <Play size={18} className="fill-current ml-0.5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-white truncate">{result.title}</p>
+                      <p className="text-xs text-purple-400 truncate mt-0.5">{result.artist}</p>
+                    </div>
+                    <div
+                      className="hidden md:block w-1/3 text-xs text-gray-400 italic border-l border-white/10 pl-4 py-1">
+                      "{result.reason}"
+                    </div>
+                  </div>
+                  ))}
+                </div>
+                ) : (
+                <div className="py-10 text-center text-gray-400 text-sm">
+                  No se encontraron pistas en la red neuronal. Intenta ser más descriptivo.
+                </div>
+                )}
+              </div>
+              )}
+            </div>
+          </header>
+
+          {/* Dynamic Content */}
+          <div className="flex-1 overflow-y-auto p-8 pt-4 pb-32 custom-scrollbar relative z-10">
+            {renderContent()}
+          </div>
+
+          {/* Fondo decorativo principal */}
+          <div
+            className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-purple-600/10 blur-[120px] rounded-full pointer-events-none -z-0">
+          </div>
+          <div
+            className="absolute bottom-0 right-0 w-[600px] h-[400px] bg-emerald-600/10 blur-[120px] rounded-full pointer-events-none -z-0">
+          </div>
+        </main>
+
+        {/* Bottom Player (Glassmorphism) */}
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[95%] max-w-[1200px] h-[90px] z-50 group">
+          {/* Glow effect behind player */}
+          <div
+            className="absolute -inset-2 bg-gradient-to-r from-emerald-500/20 via-purple-500/10 to-emerald-500/20 rounded-3xl blur-xl opacity-50 group-hover:opacity-80 transition-opacity duration-500 -z-10">
+          </div>
+
+          {/* Glass panel */}
+          <div
+            className="w-full h-full bg-[#1c212e]/60 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl flex items-center px-6 justify-between relative">
+
+            {/* Track Info */}
+            <div className="flex items-center gap-4 w-1/4">
+              <div className="w-14 h-14 rounded-md overflow-hidden relative group/cover cursor-pointer">
+                <img src="https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?auto=format&fit=crop&q=80&w=150"
+                  alt="Cover" className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-black/40 hidden group-hover/cover:flex items-center justify-center">
+                  <Search size={20} className="text-white" />
+                </div>
+              </div>
+              <div>
+                <h3 className="font-semibold text-white text-sm hover:underline cursor-pointer">SYNTHETIC ECHOES</h3>
+                <p className="text-purple-400 text-xs font-medium hover:underline cursor-pointer">AURORA</p>
+              </div>
+
+              {/* Botón de Análisis IA */}
+              <button onClick={handleTrackInsights} className={`ml-2 p-2 rounded-full transition-all duration-300
+                ${showInsights ? 'bg-purple-500/20 text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.4)]'
+                : 'text-gray-500 hover:text-purple-400 hover:bg-purple-500/10' }`}
+                title="Análisis Neuronal de la Pista">
+                <Sparkles size={16} />
+              </button>
+
+              {/* Popover Flotante de Track Insights */}
+              {showInsights && (
+              <div
+                className="absolute bottom-[100px] left-0 w-80 bg-[#121620]/95 backdrop-blur-3xl border border-purple-500/40 rounded-2xl shadow-[0_10px_50px_rgba(168,85,247,0.25)] p-5 z-50 animate-in fade-in slide-in-from-bottom-2">
+                <div className="flex justify-between items-center mb-4 border-b border-white/10 pb-3">
+                  <h4 className="text-sm font-bold text-purple-400 flex items-center gap-2">
+                    <Sparkles size={16} /> Análisis Neuronal
+                  </h4>
+                  <button onClick={()=> setShowInsights(false)} className="text-gray-500 hover:text-white
+                    transition-colors bg-white/5 p-1 rounded-md">
+                    <X size={14} />
+                  </button>
+                </div>
+
+                {isFetchingInsights ? (
+                <div className="flex flex-col items-center py-8 text-gray-400">
+                  <Loader2 size={28} className="animate-spin text-purple-500 mb-3" />
+                  <p className="text-xs animate-pulse text-center">Descodificando frecuencias<br />y extrayendo
+                    metadatos...</p>
+                </div>
+                ) : insightsData ? (
+                <div className="space-y-4 text-sm">
+                  <div>
+                    <span className="text-gray-500 text-[10px] font-bold tracking-widest block mb-1.5">GÉNEROS
+                      DETECTADOS</span>
+                    <div className="flex flex-wrap gap-2">
+                      {insightsData.genres.map(g => (
+                      <span key={g}
+                        className="bg-purple-500/10 text-purple-300 text-[10px] px-2.5 py-1 rounded-md border border-purple-500/30">
+                        {g}
+                      </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 text-[10px] font-bold tracking-widest block mb-1">VIBRA / MOOD</span>
+                    <p className="text-gray-200 text-xs leading-relaxed">{insightsData.mood}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 text-[10px] font-bold tracking-widest block mb-1">DATOS
+                      DESENCRIPTADOS</span>
+                    <p className="text-gray-200 text-xs leading-relaxed">{insightsData.trivia}</p>
+                  </div>
+                  <div className="bg-purple-500/5 p-3 rounded-xl border border-purple-500/20">
+                    <span
+                      className="text-purple-400 text-[10px] font-bold tracking-widest flex items-center gap-1.5 mb-1.5">
+                      <Cpu size={12} /> SIGNIFICADO LATENTE
+                    </span>
+                    <p className="text-gray-300 text-xs italic">"{insightsData.meaning}"</p>
+                  </div>
+                </div>
+                ) : (
+                <div className="py-6 text-center text-red-400 text-xs">
+                  Fallo en la conexión neuronal.<br />No se pudo analizar la pista.
+                </div>
+                )}
+              </div>
+              )}
+            </div>
+
+            {/* Controls */}
+            <div className="flex flex-col items-center w-2/4 max-w-md">
+              <div className="flex items-center gap-6 mb-2">
+                <button className="text-gray-400 hover:text-white transition-colors">
+                  <Shuffle size={18} />
+                </button>
+                <button className="text-gray-400 hover:text-white transition-colors">
+                  <SkipBack size={20} />
+                </button>
+                <button onClick={()=> setIsPlaying(!isPlaying)}
+                  className="w-10 h-10 rounded-full bg-transparent border-2 border-emerald-400 text-emerald-400 flex
+                  items-center justify-center hover:bg-emerald-400 hover:text-black
+                  hover:shadow-[0_0_15px_rgba(52,211,153,0.6)] transition-all"
+                  >
+                  {isPlaying ?
+                  <Pause size={18} className="fill-current" /> :
+                  <Play size={18} className="fill-current ml-1" />}
+                </button>
+                <button className="text-gray-400 hover:text-white transition-colors">
+                  <SkipForward size={20} />
+                </button>
+                <button className="text-gray-400 hover:text-white transition-colors">
+                  <Repeat size={18} />
+                </button>
+              </div>
+              {/* Progress Bar */}
+              <div className="flex items-center gap-3 w-full text-xs text-gray-400 font-mono">
+                <span>2:18</span>
+                <div className="h-1 flex-1 bg-white/10 rounded-full relative cursor-pointer group/bar">
+                  <div
+                    className="absolute top-0 left-0 h-full bg-gradient-to-r from-emerald-400 to-emerald-300 w-[60%] rounded-full group-hover/bar:from-emerald-300 group-hover/bar:to-emerald-200">
+                    <div
+                      className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-[0_0_10px_rgba(52,211,153,0.8)] opacity-0 group-hover/bar:opacity-100 transition-opacity">
+                    </div>
+                  </div>
+                </div>
+                <span>4:02</span>
+              </div>
+            </div>
+
+            {/* Extra Controls */}
+            <div className="flex items-center justify-end gap-4 w-1/4 text-gray-400">
+              <button className="hover:text-emerald-400 transition-colors">
+                <Mic size={18} />
+              </button>
+              <button className="hover:text-white transition-colors">
+                <List size={18} />
+              </button>
+              <div className="flex items-center gap-2 group/vol cursor-pointer">
+                <Volume2 size={18} className="group-hover/vol:text-white transition-colors" />
+                <div className="w-20 h-1 bg-white/10 rounded-full relative">
+                  <div
+                    className="absolute top-0 left-0 h-full bg-gray-400 group-hover/vol:bg-emerald-400 w-[70%] rounded-full">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        {/* Dev Console Modal (Gemini Powered) */}
+        {showDevModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div
+            className="w-full max-w-3xl h-[600px] bg-[#0d1117] border border-emerald-500/50 rounded-xl shadow-[0_0_50px_rgba(52,211,153,0.15)] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="bg-[#161b26] p-4 flex items-center justify-between border-b border-white/10 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-3 h-3 rounded-full bg-red-500 cursor-pointer" onClick={()=> setShowDevModal(false)}>
+                </div>
+                <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                <span className="ml-4 font-mono text-xs text-emerald-400 flex items-center gap-2">
+                  <Terminal size={14} /> neurid-studio-dev-console ✨
+                </span>
+              </div>
+              <button onClick={()=> setShowDevModal(false)} className="text-gray-500 hover:text-white">
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Terminal Body */}
+            <div className="flex-1 overflow-y-auto p-6 font-mono text-sm space-y-4 custom-scrollbar">
+              {devMessages.map((msg, idx) => (
+              <div key={idx} className={`flex gap-4 ${msg.role==='user' ? 'text-emerald-300' : 'text-gray-300' }`}>
+                <span className="shrink-0">{msg.role === 'user' ? '➜ usr:' : '➜ sys:'}</span>
+                <div className="whitespace-pre-wrap">{msg.content}</div>
+              </div>
+              ))}
+              {isDevGenerating && (
+              <div className="flex gap-4 text-emerald-500/70">
+                <span className="shrink-0">➜ sys:</span>
+                <span className="animate-pulse">compilando respuesta neuronal...</span>
+              </div>
+              )}
+            </div>
+
+            {/* Terminal Input */}
+            <div className="p-4 bg-[#121620] border-t border-white/5 flex items-center gap-3 shrink-0">
+              <span className="text-emerald-400 font-mono text-sm">~ $</span>
+              <input type="text" value={devInput} onChange={(e)=> setDevInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleDevSubmit()}
+              className="flex-1 bg-transparent border-none outline-none font-mono text-sm text-white
+              placeholder-gray-600"
+              placeholder="Pregunta sobre la arquitectura Tauri/Rust o escribe un comando..."
+              autoFocus
+              />
+              <button onClick={handleDevSubmit} disabled={isDevGenerating || !devInput.trim()}
+                className="text-gray-500 hover:text-emerald-400 disabled:opacity-50 transition-colors">
+                <Send size={16} />
+              </button>
+            </div>
+          </div>
+        </div>
+        )}
+
+      </div>
+      );
+      };
+
+      // --- Sub-components (Views) ---
+
+      const NeuridAIView = () => {
+      const [messages, setMessages] = useState([
+      {
+      id: 1,
+      role: 'ai',
+      content: 'Iniciando enlace neuronal... Hola, soy Neurid AI. ¿Qué ambiente o "vibe" buscas hoy? Puedo conversar
+      contigo o crear una playlist a medida.',
+      playlist: null
+      }
+      ]);
+      const [input, setInput] = useState("");
+      const [isGenerating, setIsGenerating] = useState(false);
+      const messagesEndRef = useRef(null);
+
+      // Auto-scroll al último mensaje
+      useEffect(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, [messages, isGenerating]);
+
+      const handleSend = async () => {
+      if (!input.trim() || isGenerating) return;
+
+      const userMsg = { id: Date.now(), role: 'user', content: input, playlist: null };
+      setMessages(prev => [...prev, userMsg]);
+      setInput("");
+      setIsGenerating(true);
+
+      const apiKey = "";
+      const systemInstruction = `Eres Neurid AI, un asistente de IA avanzado y un DJ cibernético integrado en un
+      reproductor de música.
+      El usuario interactúa contigo en un formato de chat.
+      Devuelve SIEMPRE y ÚNICAMENTE un JSON válido con esta estructura:
+      {
+      "message": "Tu respuesta conversacional en formato texto. Usa un tono hacker/neón amigable.",
+      "playlist": {
+      "title": "Nombre épico de la playlist (solo si el usuario te pide música, de lo contrario devuelve null)",
+      "tracks": [
+      { "title": "Nombre de canción real", "artist": "Artista real", "duration": "ej 3:45", "vibe": "Por qué encaja" }
+      ]
+      }
+      }
+      Si el usuario solo te saluda o charla, responde en 'message' y deja 'playlist' como null. Si pide música, genera
+      ambas cosas.`;
+
+      // Pasamos el historial de los últimos mensajes para darle contexto a la IA
+      const conversationHistory = messages.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n');
+      const fullPrompt = `Historial:\n${conversationHistory}\n\nUser: ${input}`;
+
+      const payload = {
+      contents: [{ parts: [{ text: fullPrompt }] }],
+      systemInstruction: { parts: [{ text: systemInstruction }] },
+      generationConfig: { responseMimeType: "application/json" }
+      };
+
+      const maxRetries = 5;
+      const delays = [1000, 2000, 4000, 8000, 16000];
+      let attempt = 0;
+      let success = false;
+
+      while (attempt < maxRetries && !success) { try { const response=await
+        fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`,
+        { method: 'POST' , headers: { 'Content-Type' : 'application/json' }, body: JSON.stringify(payload) }); if
+        (!response.ok) throw new Error("API Error"); const data=await response.json(); const
+        textResponse=data.candidates?.[0]?.content?.parts?.[0]?.text; if (textResponse) { const
+        parsedData=JSON.parse(textResponse); const aiMsg={ id: Date.now() + 1, role: 'ai' , content: parsedData.message,
+        playlist: parsedData.playlist }; setMessages(prev=> [...prev, aiMsg]);
+        success = true;
+        } else {
+        throw new Error("Respuesta inválida");
+        }
+        } catch (err) {
+        attempt++;
+        if (attempt >= maxRetries) {
+        setMessages(prev => [...prev, {
+        id: Date.now() + 2,
+        role: 'ai',
+        content: "Error en el enlace neuronal. Verifica tu conexión o intenta de nuevo.",
+        playlist: null
+        }]);
+        } else {
+        await new Promise(resolve => setTimeout(resolve, delays[attempt - 1]));
+        }
+        }
+        }
+        setIsGenerating(false);
+        };
+
+        return (
+        <div className="flex flex-col h-[calc(100vh-180px)] animate-in fade-in duration-500">
+          <div className="flex items-center gap-3 mb-6 shrink-0 border-b border-white/5 pb-4">
+            <Cpu className="text-emerald-400" size={24} />
+            <h2 className="text-2xl font-bold tracking-tight">Terminal Neurid AI</h2>
+          </div>
+
+          {/* Historial del Chat */}
+          <div className="flex-1 overflow-y-auto pr-4 space-y-6 custom-scrollbar pb-6">
+            {messages.map((msg) => (
+            <div key={msg.id} className={`flex gap-4 ${msg.role==='user' ? 'justify-end' : 'justify-start' }`}>
+
+              {/* Avatar AI */}
+              {msg.role === 'ai' && (
+              <div
+                className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/50 flex items-center justify-center shrink-0 mt-1 shadow-[0_0_10px_rgba(52,211,153,0.2)]">
+                <Cpu size={14} className="text-emerald-400" />
+              </div>
+              )}
+
+              <div className={`max-w-[85%] flex flex-col gap-3 ${msg.role==='user' ? 'items-end' : 'items-start' }`}>
+                {/* Burbuja de Texto */}
+                <div className={`px-5 py-3 rounded-2xl ${ msg.role==='user'
+                  ? 'bg-emerald-500 text-black font-medium rounded-tr-sm shadow-[0_0_15px_rgba(52,211,153,0.2)]'
+                  : 'bg-[#161b26]/90 border border-white/10 text-gray-200 rounded-tl-sm' }`}>
+                  <p className="text-sm leading-relaxed">{msg.content}</p>
+                </div>
+
+                {/* Tarjeta de Playlist Generada (Solo AI) */}
+                {msg.role === 'ai' && msg.playlist && (
+                <div
+                  className="bg-gradient-to-r from-emerald-900/30 to-[#121620] border border-emerald-500/30 rounded-xl p-5 w-full max-w-lg shadow-lg">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3
+                      className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-purple-400">
+                      {msg.playlist.title}
+                    </h3>
+                    <button
+                      className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 p-2 rounded-full transition-colors">
+                      <Play size={16} className="fill-current" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    {msg.playlist.tracks.map((track, idx) => (
+                    <div key={idx}
+                      className="flex items-center justify-between bg-black/20 hover:bg-black/40 p-2.5 rounded-lg border border-white/5 transition-colors group cursor-pointer">
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        <div className="text-gray-500 text-xs w-4">{idx + 1}</div>
+                        <div className="truncate">
+                          <p className="font-semibold text-white text-xs truncate">{track.title}</p>
+                          <p className="text-purple-400 text-[10px] truncate">{track.artist}</p>
+                        </div>
+                      </div>
+                      <span className="text-gray-500 text-xs font-mono shrink-0 ml-4">{track.duration}</span>
+                    </div>
+                    ))}
+                  </div>
+                </div>
+                )}
+              </div>
+
+              {/* Avatar Usuario */}
+              {msg.role === 'user' && (
+              <div
+                className="w-8 h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center shrink-0 mt-1">
+                <User size={14} className="text-gray-300" />
+              </div>
+              )}
+            </div>
+            ))}
+
+            {/* Indicador de "Escribiendo..." */}
+            {isGenerating && (
+            <div className="flex gap-4 justify-start">
+              <div
+                className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/50 flex items-center justify-center shrink-0 mt-1 shadow-[0_0_10px_rgba(52,211,153,0.2)]">
+                <Cpu size={14} className="text-emerald-400" />
+              </div>
+              <div
+                className="bg-[#161b26]/90 border border-white/10 px-5 py-4 rounded-2xl rounded-tl-sm flex items-center gap-2">
+                <Loader2 size={16} className="text-emerald-400 animate-spin" />
+                <span className="text-xs text-gray-400">Procesando petición neuronal...</span>
+              </div>
+            </div>
+            )}
+
+            <div ref={messagesEndRef} className="h-4" />
+          </div>
+
+          {/* Input de Chat Fijo al fondo */}
+          <div className="shrink-0 pt-2 pb-4">
+            <div className="relative group">
+              <div
+                className="absolute -inset-0.5 bg-gradient-to-r from-emerald-500/50 to-purple-600/50 rounded-xl blur opacity-30 group-focus-within:opacity-60 transition duration-500">
+              </div>
+              <div
+                className="relative flex items-center bg-[#161b26] rounded-xl border border-white/10 overflow-hidden shadow-lg">
+                <input type="text" value={input} onChange={(e)=> setInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                placeholder="Escribe un comando o pide una playlist..."
+                className="flex-1 bg-transparent border-none outline-none text-white px-6 py-4 text-sm
+                placeholder-gray-500"
+                />
+                <button onClick={handleSend} disabled={isGenerating || !input.trim()}
+                  className="px-6 py-4 text-emerald-400 hover:text-white hover:bg-emerald-500/20 disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-emerald-400 transition-colors flex items-center justify-center">
+                  <Send size={18} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        );
+        };
+
+        const LibraryView = () => {
+        const [isAnalyzing, setIsAnalyzing] = useState(false);
+        const [profile, setProfile] = useState(null);
+
+        // --- Nuevos estados para el Organizador Neuronal ---
+        const [isOrganizing, setIsOrganizing] = useState(false);
+        const [organizedLibrary, setOrganizedLibrary] = useState(null);
+        const [customTheme, setCustomTheme] = useState("");
+
+        // --- Nuevos estados para la Crónica Neuronal (Lore) ---
+        const [isGeneratingLore, setIsGeneratingLore] = useState(false);
+        const [loreResult, setLoreResult] = useState(null);
+
+        // Hemos añadido un par de pistas extra para que la agrupación de la IA sea más visual
+        const localTracks = [
+        { id: 1, title: "Cybernetic Horizon", artist: "Perturbator", album: "Dangerous Days", time: "4:20" },
+        { id: 2, title: "Night City Lights", artist: "Kavinsky", album: "OutRun", time: "3:45" },
+        { id: 3, title: "Data Stream", artist: "Gunship", album: "Dark All Day", time: "5:12" },
+        { id: 4, title: "Neon Nights", artist: "The Midnight", album: "Endless Summer", time: "4:08" },
+        { id: 5, title: "Tech Noir", artist: "Gunship", album: "Gunship", time: "4:57" },
+        { id: 6, title: "Venger", artist: "Perturbator", album: "The Uncanny Valley", time: "5:08" },
+        ];
+
+        const handleAnalyzeLibrary = async () => {
+        setIsAnalyzing(true);
+        setProfile(null);
+
+        const apiKey = "";
+        const systemInstruction = `Eres un psicólogo musical cibernético de Neurid Studio.
+        Analiza la lista de canciones locales del usuario y crea un perfil psicológico-musical de su personalidad.
+        Devuelve SIEMPRE y ÚNICAMENTE un JSON válido con esta estructura:
+        {
+        "profileName": "Un título épico y cyberpunk para su perfil (ej. 'Jinete de Neón')",
+        "topGenre": "El género principal detectado",
+        "analysis": "Un análisis profundo y creativo de 2 líneas sobre su personalidad basada en su música",
+        "recommendation": "Una sugerencia sobre qué tipo de música debería añadir a su disco duro"
+        }`;
+
+        const payload = {
+        contents: [{ parts: [{ text: `Analiza esta biblioteca local: ${JSON.stringify(localTracks)}` }] }],
+        systemInstruction: { parts: [{ text: systemInstruction }] },
+        generationConfig: { responseMimeType: "application/json" }
+        };
+
+        const maxRetries = 5;
+        const delays = [1000, 2000, 4000, 8000, 16000];
+        let attempt = 0;
+        let success = false;
+
+        while (attempt < maxRetries && !success) { try { const response=await
+          fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`,
+          { method: 'POST' , headers: { 'Content-Type' : 'application/json' }, body: JSON.stringify(payload) }); if
+          (!response.ok) throw new Error("API Error"); const data=await response.json(); const
+          textResponse=data.candidates?.[0]?.content?.parts?.[0]?.text; if (textResponse) {
+          setProfile(JSON.parse(textResponse)); success=true; } else { throw new Error("Respuesta inválida"); } } catch
+          (err) { attempt++; if (attempt>= maxRetries) {
+          console.error("Fallo al analizar biblioteca:", err);
+          } else {
+          await new Promise(resolve => setTimeout(resolve, delays[attempt - 1]));
+          }
+          }
+          }
+          setIsAnalyzing(false);
+          };
+
+          // --- Nueva función: Organizar Biblioteca con IA ---
+          const handleOrganizeLibrary = async (theme) => {
+          const themeString = typeof theme === 'string' ? theme : "";
+          setIsOrganizing(true);
+          if(!themeString) setOrganizedLibrary(null);
+
+          const apiKey = "";
+          const themeInstruction = themeString ? `basándote estrictamente en esta temática o concepto:
+          "${themeString}".` : `basadas estrictamente en la "vibra", género o estado de ánimo que sugieren los títulos y
+          artistas.`;
+
+          const systemInstruction = `Eres un curador musical cibernético de Neurid Studio.
+          Agrupa la biblioteca local del usuario en 2 o 3 categorías ${themeInstruction}
+          Usa nombres de categorías épicos y muy creativos (ej. 'Persecución Neón' o 'Melancolía Sintética').
+          Devuelve SIEMPRE y ÚNICAMENTE un JSON válido con esta estructura estricta:
+          {
+          "categories": [
+          {
+          "name": "Nombre creativo de la categoría",
+          "description": "Por qué estas canciones encajan en este grupo",
+          "trackIds": [1, 2] // IDs de las pistas que pertenecen aquí
+          }
+          ]
+          }`;
+
+          const payload = {
+          contents: [{ parts: [{ text: `Agrupa las siguientes canciones según su vibra: ${JSON.stringify(localTracks)}`
+          }] }],
+          systemInstruction: { parts: [{ text: systemInstruction }] },
+          generationConfig: { responseMimeType: "application/json" }
+          };
+
+          const maxRetries = 5;
+          const delays = [1000, 2000, 4000, 8000, 16000];
+          let attempt = 0;
+          let success = false;
+
+          while (attempt < maxRetries && !success) { try { const response=await
+            fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`,
+            { method: 'POST' , headers: { 'Content-Type' : 'application/json' }, body: JSON.stringify(payload) }); if
+            (!response.ok) throw new Error("API Error"); const data=await response.json(); const
+            textResponse=data.candidates?.[0]?.content?.parts?.[0]?.text; if (textResponse) {
+            setOrganizedLibrary(JSON.parse(textResponse)); success=true; } else { throw new Error("Respuesta inválida");
+            } } catch (err) { attempt++; if (attempt>= maxRetries) {
+            console.error("Fallo al organizar biblioteca:", err);
+            } else {
+            await new Promise(resolve => setTimeout(resolve, delays[attempt - 1]));
+            }
+            }
+            }
+            setIsOrganizing(false);
+            };
+
+            // --- Nueva función: Crónica Neuronal (Generador de Lore) ---
+            const handleGenerateLore = async () => {
+            setIsGeneratingLore(true);
+            setLoreResult(null);
+
+            const apiKey = "";
+            const systemInstruction = `Eres un aclamado escritor de ciencia ficción cyberpunk integrado en Neurid
+            Studio.
+            Tu objetivo es tomar la lista de canciones locales del usuario y transformarla en una "Crónica Neuronal":
+            una historia inmersiva donde cada canción es la banda sonora de un capítulo o evento crucial de la
+            narrativa.
+            Devuelve SIEMPRE y ÚNICAMENTE un JSON válido con esta estructura estricta:
+            {
+            "storyTitle": "Título épico de la crónica (ej. 'Fuga de Neo-Tokio')",
+            "chapters": [
+            {
+            "trackId": 1,
+            "chapterTitle": "Fase 1: Infiltración",
+            "narrative": "Un párrafo inmersivo y de alta calidad describiendo qué sucede en la historia mientras suena
+            esta canción."
+            }
+            ]
+            }`;
+
+            // Enviamos solo una selección de pistas para no alargar demasiado la historia
+            const tracksToSend = localTracks.slice(0, 4);
+
+            const payload = {
+            contents: [{ parts: [{ text: `Crea una crónica épica utilizando estas pistas musicales como base:
+            ${JSON.stringify(tracksToSend)}` }] }],
+            systemInstruction: { parts: [{ text: systemInstruction }] },
+            generationConfig: { responseMimeType: "application/json" }
+            };
+
+            const maxRetries = 5;
+            const delays = [1000, 2000, 4000, 8000, 16000];
+            let attempt = 0;
+            let success = false;
+
+            while (attempt < maxRetries && !success) { try { const response=await
+              fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`,
+              { method: 'POST' , headers: { 'Content-Type' : 'application/json' }, body: JSON.stringify(payload) }); if
+              (!response.ok) throw new Error("API Error"); const data=await response.json(); const
+              textResponse=data.candidates?.[0]?.content?.parts?.[0]?.text; if (textResponse) {
+              setLoreResult(JSON.parse(textResponse)); success=true; } else { throw new Error("Respuesta inválida"); } }
+              catch (err) { attempt++; if (attempt>= maxRetries) {
+              console.error("Fallo al generar crónica:", err);
+              } else {
+              await new Promise(resolve => setTimeout(resolve, delays[attempt - 1]));
+              }
+              }
+              }
+              setIsGeneratingLore(false);
+              };
+
+              return (
+              <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="flex flex-col xl:flex-row xl:items-center justify-between mb-8 gap-4">
+                  <div>
+                    <h2 className="text-3xl font-bold tracking-tight mb-1">Tu Biblioteca Local</h2>
+                    <p className="text-gray-400 text-sm">Gestiona tus archivos escaneados por el motor de Rust.</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button onClick={handleGenerateLore} disabled={isGeneratingLore}
+                      className="flex items-center gap-2 bg-pink-500/10 hover:bg-pink-500/20 border border-pink-500/50 text-pink-400 px-4 py-2.5 rounded-lg shadow-[0_0_15px_rgba(236,72,153,0.15)] hover:shadow-[0_0_20px_rgba(236,72,153,0.3)] transition-all font-medium disabled:opacity-50 text-sm">
+                      {isGeneratingLore ?
+                      <Loader2 size={16} className="animate-spin" /> :
+                      <BookOpen size={16} />}
+                      Crónica Neuronal ✨
+                    </button>
+                    <button onClick={handleOrganizeLibrary} disabled={isOrganizing}
+                      className="flex items-center gap-2 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/50 text-blue-400 px-4 py-2.5 rounded-lg shadow-[0_0_15px_rgba(59,130,246,0.15)] hover:shadow-[0_0_20px_rgba(59,130,246,0.3)] transition-all font-medium disabled:opacity-50 text-sm">
+                      {isOrganizing ?
+                      <Loader2 size={16} className="animate-spin" /> :
+                      <Layers size={16} />}
+                      Organizador IA ✨
+                    </button>
+                    <button onClick={handleAnalyzeLibrary} disabled={isAnalyzing}
+                      className="flex items-center gap-2 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/50 text-purple-400 px-4 py-2.5 rounded-lg shadow-[0_0_15px_rgba(168,85,247,0.15)] hover:shadow-[0_0_20px_rgba(168,85,247,0.3)] transition-all font-medium disabled:opacity-50 text-sm">
+                      {isAnalyzing ?
+                      <Loader2 size={16} className="animate-spin" /> :
+                      <Brain size={16} />}
+                      Analizar Perfil IA
+                    </button>
+                    <button
+                      className="flex items-center gap-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500 text-emerald-400 px-4 py-2.5 rounded-lg shadow-[0_0_15px_rgba(52,211,153,0.15)] hover:shadow-[0_0_20px_rgba(52,211,153,0.3)] transition-all font-medium text-sm">
+                      <FolderPlus size={16} />
+                      Agregar Carpeta
+                    </button>
+                  </div>
+                </div>
+
+                {/* Visor de Crónica Neuronal (Lore) */}
+                {loreResult && (
+                <div
+                  className="mb-8 bg-gradient-to-b from-[#1a1525] to-[#121620] border border-pink-500/30 rounded-2xl p-8 shadow-[0_0_40px_rgba(236,72,153,0.15)] animate-in slide-in-from-top-4 relative overflow-hidden group">
+                  <div
+                    className="absolute top-0 right-0 w-96 h-96 bg-pink-500/10 blur-[100px] rounded-full pointer-events-none">
+                  </div>
+
+                  <div
+                    className="relative z-10 flex items-center justify-between mb-8 border-b border-pink-500/20 pb-4">
+                    <div>
+                      <span
+                        className="text-pink-500 font-mono text-xs tracking-widest uppercase flex items-center gap-2 mb-2">
+                        <BookOpen size={14} /> Transmisión Desencriptada
+                      </span>
+                      <h3
+                        className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-purple-400">
+                        {loreResult.storyTitle}
+                      </h3>
+                    </div>
+                    <button onClick={()=> setLoreResult(null)} className="text-gray-500 hover:text-white bg-white/5 p-2
+                      rounded-lg transition-colors">
+                      <X size={18} />
+                    </button>
+                  </div>
+
+                  <div className="relative z-10 space-y-6">
+                    {loreResult.chapters.map((chapter, idx) => {
+                    const track = localTracks.find(t => t.id === chapter.trackId);
+                    return (
+                    <div key={idx} className="flex gap-6 items-start group/chapter">
+                      <div className="shrink-0 flex flex-col items-center">
+                        <div
+                          className="w-10 h-10 rounded-full bg-pink-500/10 border border-pink-500/30 flex items-center justify-center text-pink-400 group-hover/chapter:bg-pink-500 group-hover/chapter:text-black transition-all shadow-[0_0_10px_rgba(236,72,153,0.2)]">
+                          <Play size={16} className="fill-current ml-1" />
+                        </div>
+                        {idx !== loreResult.chapters.length - 1 && (
+                        <div className="w-px h-full min-h-[40px] bg-gradient-to-b from-pink-500/30 to-transparent my-2">
+                        </div>
+                        )}
+                      </div>
+
+                      <div
+                        className="flex-1 bg-black/20 p-5 rounded-xl border border-white/5 hover:border-pink-500/20 transition-colors">
+                        <h4 className="text-lg font-bold text-gray-200 mb-1">{chapter.chapterTitle}</h4>
+                        <p className="text-xs text-pink-400 font-mono mb-3">🎵 BSO: {track?.title} - {track?.artist}</p>
+                        <p className="text-sm text-gray-400 leading-relaxed italic">
+                          {chapter.narrative}
+                        </p>
+                      </div>
+                    </div>
+                    );
+                    })}
+                  </div>
+                </div>
+                )}
+
+                {profile && (
+                <div
+                  className="mb-8 bg-gradient-to-r from-purple-900/30 to-[#161b26] border border-purple-500/30 rounded-2xl p-6 shadow-[0_0_30px_rgba(168,85,247,0.15)] animate-in slide-in-from-top-4 relative overflow-hidden">
+                  <div
+                    className="absolute top-0 right-0 w-48 h-48 bg-purple-500/10 blur-[60px] rounded-full pointer-events-none">
+                  </div>
+                  <div className="relative z-10 flex flex-col md:flex-row gap-6">
+                    <div
+                      className="shrink-0 flex flex-col items-center justify-center w-24 h-24 rounded-full bg-purple-500/10 border-2 border-purple-500/50 shadow-[0_0_15px_rgba(168,85,247,0.4)]">
+                      <Brain size={32} className="text-purple-400 mb-1" />
+                      <span className="text-[10px] font-mono text-purple-300">NIVEL 99</span>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-gray-400 tracking-widest mb-1 uppercase">Perfil Detectado:
+                        {profile.topGenre}</h3>
+                      <h4
+                        className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 mb-3">
+                        "{profile.profileName}"
+                      </h4>
+                      <p className="text-sm text-gray-300 mb-3 italic">
+                        {profile.analysis}
+                      </p>
+                      <div
+                        className="inline-flex items-center gap-2 bg-black/40 border border-purple-500/20 px-3 py-1.5 rounded-md text-xs text-purple-300">
+                        <Sparkles size={12} />
+                        <span className="font-semibold">Recomendación IA:</span> {profile.recommendation}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                )}
+
+                {organizedLibrary ? (
+                <div className="space-y-6 animate-in slide-in-from-bottom-4">
+                  <div
+                    className="flex flex-col md:flex-row md:items-center justify-between bg-blue-500/10 border border-blue-500/30 p-4 rounded-xl gap-4">
+                    <p className="text-blue-300 text-sm flex-1">
+                      <Sparkles size={16} className="inline mr-2 text-blue-400" />
+                      La red neuronal ha organizado tu biblioteca en carpetas semánticas basándose en las vibras de las
+                      pistas.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input type="text" value={customTheme} onChange={(e)=> setCustomTheme(e.target.value)}
+                      placeholder="Ej. Sci-Fi, Lluvia..."
+                      className="bg-[#0d1117]/80 border border-blue-500/30 rounded-md px-3 py-1.5 text-xs text-white
+                      focus:outline-none focus:border-blue-400 transition-colors w-40"
+                      onKeyDown={(e) => e.key === 'Enter' && handleOrganizeLibrary(customTheme)}
+                      />
+                      <button onClick={()=> handleOrganizeLibrary(customTheme)}
+                        disabled={isOrganizing || !customTheme.trim()}
+                        className="text-blue-400 hover:text-white text-xs border border-blue-500/50 px-3 py-1.5
+                        rounded-md transition-colors hover:bg-blue-500/20 disabled:opacity-50 flex items-center gap-1"
+                        >
+                        {isOrganizing ?
+                        <Loader2 size={12} className="animate-spin" /> :
+                        <Sparkles size={12} />}
+                        Re-agrupar Temática
+                      </button>
+                      <button onClick={()=> { setOrganizedLibrary(null); setCustomTheme(""); }} className="text-gray-400
+                        hover:text-white text-xs border border-white/20 px-3 py-1.5 rounded-md transition-colors
+                        hover:bg-white/10">
+                        Restaurar Original
+                      </button>
+                    </div>
+                  </div>
+
+                  {organizedLibrary.categories.map((cat, idx) => (
+                  <div key={idx}
+                    className="bg-[#161b26]/80 rounded-xl border border-blue-500/30 overflow-hidden shadow-[0_0_20px_rgba(59,130,246,0.05)]">
+                    <div className="bg-gradient-to-r from-blue-500/10 to-transparent p-4 border-b border-blue-500/20">
+                      <h4 className="font-bold text-blue-400 flex items-center gap-2">
+                        <Layers size={16} /> {cat.name}
+                      </h4>
+                      <p className="text-xs text-blue-300/70 mt-1">{cat.description}</p>
+                    </div>
+                    <table className="w-full text-left text-sm">
+                      <thead className="bg-white/5 text-gray-400 border-b border-white/5">
+                        <tr>
+                          <th className="p-4 font-medium w-12">#</th>
+                          <th className="p-4 font-medium">Título</th>
+                          <th className="p-4 font-medium">Artista</th>
+                          <th className="p-4 font-medium">Álbum</th>
+                          <th className="p-4 font-medium text-right">Duración</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {localTracks.filter(t => cat.trackIds.includes(t.id)).map((track) => (
+                        <tr key={track.id}
+                          className="border-b border-white/5 hover:bg-white/5 group cursor-pointer transition-colors">
+                          <td className="p-4 text-gray-500">
+                            <span className="group-hover:hidden">{track.id}</span>
+                            <Play size={14} className="hidden group-hover:block text-emerald-400" />
+                          </td>
+                          <td className="p-4 font-medium text-white flex items-center gap-3">
+                            <div className="w-8 h-8 rounded bg-gray-800 flex items-center justify-center">
+                              <ListMusic size={14} className="text-gray-400" />
+                            </div>
+                            {track.title}
+                          </td>
+                          <td className="p-4 text-purple-400">{track.artist}</td>
+                          <td className="p-4 text-gray-400">{track.album}</td>
+                          <td className="p-4 text-gray-400 text-right">{track.time}</td>
+                        </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  ))}
+                </div>
+                ) : (
+                <div className="bg-[#161b26]/80 rounded-xl border border-white/5 overflow-hidden">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-white/5 text-gray-400 border-b border-white/5">
+                      <tr>
+                        <th className="p-4 font-medium w-12">#</th>
+                        <th className="p-4 font-medium">Título</th>
+                        <th className="p-4 font-medium">Artista</th>
+                        <th className="p-4 font-medium">Álbum</th>
+                        <th className="p-4 font-medium text-right">Duración</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {localTracks.map((track) => (
+                      <tr key={track.id}
+                        className="border-b border-white/5 hover:bg-white/5 group cursor-pointer transition-colors">
+                        <td className="p-4 text-gray-500">
+                          <span className="group-hover:hidden">{track.id}</span>
+                          <Play size={14} className="hidden group-hover:block text-emerald-400" />
+                        </td>
+                        <td className="p-4 font-medium text-white flex items-center gap-3">
+                          <div className="w-8 h-8 rounded bg-gray-800 flex items-center justify-center">
+                            <ListMusic size={14} className="text-gray-400" />
+                          </div>
+                          {track.title}
+                        </td>
+                        <td className="p-4 text-purple-400">{track.artist}</td>
+                        <td className="p-4 text-gray-400">{track.album}</td>
+                        <td className="p-4 text-gray-400 text-right">{track.time}</td>
+                      </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                )}
+              </div>
+              );
+              };
+
+              const PlaylistsView = () => {
+              const [mixInput, setMixInput] = useState("");
+              const [isMixing, setIsMixing] = useState(false);
+              const [mixedResult, setMixedResult] = useState(null);
+
+              const handleMix = async () => {
+              if (!mixInput.trim()) return;
+              setIsMixing(true);
+              setMixedResult(null);
+
+              const apiKey = "";
+              const systemInstruction = `Eres 'El Alquimista', una IA especializada en fusionar géneros musicales,
+              estados de ánimo y artistas aparentemente incompatibles.
+              El usuario te dará 2 o más conceptos (ej: 'Beethoven y Synthwave' o 'Rosalía y Metal').
+              Crea una playlist coherente que fusione estos mundos de manera progresiva.
+              Devuelve SIEMPRE y ÚNICAMENTE un JSON válido con esta estructura estricta:
+              {
+              "title": "Nombre épico y creativo de la playlist",
+              "lore": "Breve historia o justificación conceptual de esta extraña pero genial fusión.",
+              "tracks": [
+              { "title": "Canción real", "artist": "Artista real", "reason": "Por qué funciona en la mezcla o cómo
+              conecta los géneros" }
+              ]
+              }`;
+
+              const payload = {
+              contents: [{ parts: [{ text: mixInput }] }],
+              systemInstruction: { parts: [{ text: systemInstruction }] },
+              generationConfig: { responseMimeType: "application/json" }
+              };
+
+              const maxRetries = 5;
+              const delays = [1000, 2000, 4000, 8000, 16000];
+              let attempt = 0;
+              let success = false;
+
+              while (attempt < maxRetries && !success) { try { const response=await
+                fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`,
+                { method: 'POST' , headers: { 'Content-Type' : 'application/json' }, body: JSON.stringify(payload) });
+                if (!response.ok) throw new Error("API Error"); const data=await response.json(); const
+                textResponse=data.candidates?.[0]?.content?.parts?.[0]?.text; if (textResponse) {
+                setMixedResult(JSON.parse(textResponse)); success=true; } else { throw new Error("Respuesta inválida");
+                } } catch (err) { attempt++; if (attempt>= maxRetries) {
+                console.error("Error en alquimia neuronal:", err);
+                } else {
+                await new Promise(resolve => setTimeout(resolve, delays[attempt - 1]));
+                }
+                }
+                }
+                setIsMixing(false);
+                };
+
+                return (
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10">
+                  <div className="mb-8">
+                    <h2 className="text-3xl font-bold tracking-tight mb-1 flex items-center gap-3">
+                      <ListMusic className="text-emerald-400" size={28} />
+                      Tus Playlists
+                    </h2>
+                    <p className="text-gray-400 text-sm">Gestiona tus colecciones y usa la IA para crear mezclas
+                      imposibles.</p>
+                  </div>
+
+                  {/* AI Alchemist Feature */}
+                  <div
+                    className="bg-gradient-to-br from-[#121620] to-[#161b26] border border-purple-500/30 rounded-2xl p-6 mb-12 shadow-[0_0_30px_rgba(168,85,247,0.1)] relative overflow-hidden group">
+                    <div
+                      className="absolute top-0 right-0 w-64 h-64 bg-purple-500/10 blur-[80px] rounded-full pointer-events-none">
+                    </div>
+
+                    <h3 className="text-xl font-bold mb-2 flex items-center gap-2 text-purple-400">
+                      <Wand2 size={20} /> Alquimista de Playlists IA ✨
+                    </h3>
+                    <p className="text-sm text-gray-400 mb-6 relative z-10">Fusiona géneros, artistas o conceptos que no
+                      tienen nada que ver. La red neuronal encontrará el puente musical perfecto entre ellos.</p>
+
+                    <div className="flex flex-col md:flex-row gap-4 mb-4 relative z-10">
+                      <input type="text" value={mixInput} onChange={(e)=> setMixInput(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleMix()}
+                      placeholder="Ej: 'Música clásica fusionada con Cyberpunk' o 'Daft Punk y Flamenco'..."
+                      className="flex-1 bg-[#0d1117]/80 backdrop-blur-sm border border-purple-500/30 rounded-xl px-4
+                      py-3 text-white focus:outline-none focus:border-purple-400 transition-colors shadow-inner"
+                      />
+                      <button onClick={handleMix} disabled={isMixing || !mixInput.trim()}
+                        className="bg-purple-600 hover:bg-purple-500 text-white font-bold px-6 py-3 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 transition-all shadow-[0_0_15px_rgba(168,85,247,0.4)]">
+                        {isMixing ?
+                        <Loader2 size={18} className="animate-spin" /> :
+                        <Wand2 size={18} />}
+                        Fusionar
+                      </button>
+                    </div>
+
+                    {/* Resultado de la Mezcla Generado por Gemini */}
+                    {mixedResult && (
+                    <div
+                      className="mt-8 bg-black/40 border border-purple-500/20 rounded-xl p-5 animate-in fade-in slide-in-from-top-4 relative z-10">
+                      <div className="flex flex-col md:flex-row md:items-start justify-between mb-6 gap-4">
+                        <div>
+                          <h4
+                            className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
+                            {mixedResult.title}
+                          </h4>
+                          <p className="text-sm text-gray-400 mt-2 italic border-l-2 border-purple-500 pl-3">
+                            "{mixedResult.lore}"
+                          </p>
+                        </div>
+                        <button
+                          className="bg-purple-500/20 text-purple-400 hover:bg-purple-500 hover:text-white p-3 rounded-full transition-colors shrink-0 shadow-[0_0_15px_rgba(168,85,247,0.3)]">
+                          <Play size={20} className="fill-current" />
+                        </button>
+                      </div>
+
+                      <div className="space-y-2 mt-4">
+                        {mixedResult.tracks.map((track, idx) => (
+                        <div key={idx}
+                          className="flex flex-col md:flex-row md:items-center justify-between bg-white/5 hover:bg-white/10 p-3.5 rounded-lg border border-transparent hover:border-purple-500/30 transition-colors group cursor-pointer gap-3">
+                          <div className="flex items-center gap-4">
+                            <span className="text-gray-500 font-mono text-xs w-4 shrink-0">{idx + 1}</span>
+                            <div>
+                              <p className="font-semibold text-white text-sm">{track.title}</p>
+                              <p className="text-purple-400 text-xs">{track.artist}</p>
+                            </div>
+                          </div>
+                          <div className="md:text-right flex items-center gap-4">
+                            <span className="text-xs text-gray-500 italic max-w-sm">"{track.reason}"</span>
+                            <ListMusic size={14}
+                              className="text-gray-600 group-hover:text-purple-400 transition-colors hidden md:block" />
+                          </div>
+                        </div>
+                        ))}
+                      </div>
+                    </div>
+                    )}
+                  </div>
+
+                  {/* Playlists Estáticas (Maquetación) */}
+                  <h3 className="text-xl font-bold mb-6 flex items-center gap-2 text-white">
+                    <Library size={20} className="text-gray-400" /> Colecciones Guardadas
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
+                    {[1, 2, 3, 4].map(i => (
+                    <div key={i}
+                      className="bg-[#161b26]/60 p-4 rounded-2xl border border-white/5 hover:border-emerald-500/50 transition-all duration-300 group cursor-pointer">
+                      <div className="aspect-square rounded-xl mb-4 overflow-hidden relative shadow-lg">
+                        <img src={`https://images.unsplash.com/photo-${1510000000000 + i *
+                          22222}?auto=format&fit=crop&q=80&w=300`}
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                          alt="playlist" />
+                        <div
+                          className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                          <div
+                            className="w-12 h-12 rounded-full bg-emerald-500/80 flex items-center justify-center backdrop-blur-md shadow-lg">
+                            <Play size={20} className="fill-current text-white ml-1" />
+                          </div>
+                        </div>
+                      </div>
+                      <p className="font-bold text-sm truncate text-white mb-1">Mi Mix Vol. {i}</p>
+                      <p className="text-xs text-gray-500 truncate">24 pistas • Local</p>
+                    </div>
+                    ))}
+                  </div>
+                </div>
+                );
+                };
+
+                const IntegrationsView = () => {
+                const [auditInput, setAuditInput] = useState("");
+                const [isAuditing, setIsAuditing] = useState(false);
+                const [auditResult, setAuditResult] = useState(null);
+
+                const handleAudit = async () => {
+                if (!auditInput.trim()) return;
+                setIsAuditing(true);
+                setAuditResult(null);
+
+                const apiKey = "";
+                const systemInstruction = `Eres el Auditor de Ecosistemas de Neurid Studio.
+                Analiza los hábitos de escucha del usuario y recomienda cuál de las 3 plataformas integradas (Spotify,
+                Deezer, YouTube Music) es ideal para ellos, o cómo combinarlas.
+                Devuelve SIEMPRE y ÚNICAMENTE un JSON con esta estructura estricta:
+                {
+                "recommendedPlatform": "Spotify, Deezer o YouTube Music",
+                "match": "Porcentaje de afinidad (ej. 98%)",
+                "analysis": "Un párrafo analizando por qué esta es su mejor opción basándose en sus hábitos",
+                "strategy": ["Paso 1 de la estrategia de migración", "Paso 2", "Paso 3"]
+                }`;
+
+                const payload = {
+                contents: [{ parts: [{ text: auditInput }] }],
+                systemInstruction: { parts: [{ text: systemInstruction }] },
+                generationConfig: { responseMimeType: "application/json" }
+                };
+
+                const maxRetries = 5;
+                const delays = [1000, 2000, 4000, 8000, 16000];
+                let attempt = 0;
+                let success = false;
+
+                while (attempt < maxRetries && !success) { try { const response=await
+                  fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`,
+                  { method: 'POST' , headers: { 'Content-Type' : 'application/json' }, body: JSON.stringify(payload) });
+                  if (!response.ok) throw new Error("API Error"); const data=await response.json(); const
+                  textResponse=data.candidates?.[0]?.content?.parts?.[0]?.text; if (textResponse) {
+                  setAuditResult(JSON.parse(textResponse)); success=true; } else { throw new Error("Respuesta
+                  inválida"); } } catch (err) { attempt++; if (attempt>= maxRetries) {
+                  console.error("Error en auditoría:", err);
+                  } else {
+                  await new Promise(resolve => setTimeout(resolve, delays[attempt - 1]));
+                  }
+                  }
+                  }
+                  setIsAuditing(false);
+                  };
+
+                  const getPlatformColors = (platformName) => {
+                  const name = platformName?.toLowerCase() || '';
+                  if (name.includes('deezer')) return { text: 'text-[#A238FF]', bg: 'bg-[#A238FF]/10', border:
+                  'border-[#A238FF]/30', shadow: 'shadow-[0_0_20px_rgba(162,56,255,0.2)]' };
+                  if (name.includes('youtube')) return { text: 'text-[#FF0000]', bg: 'bg-[#FF0000]/10', border:
+                  'border-[#FF0000]/30', shadow: 'shadow-[0_0_20px_rgba(255,0,0,0.2)]' };
+                  return { text: 'text-[#1DB954]', bg: 'bg-[#1DB954]/10', border: 'border-[#1DB954]/30', shadow:
+                  'shadow-[0_0_20px_rgba(29,185,84,0.2)]' };
+                  };
+
+                  return (
+                  <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-5xl mx-auto pb-10">
+                    <div className="text-center mb-8 mt-4">
+                      <h2 className="text-3xl font-bold tracking-tight mb-2">Conecta tu Ecosistema</h2>
+                      <p className="text-gray-400">Sincroniza tus playlists y favoritos mediante las APIs oficiales.</p>
+                    </div>
+
+                    {/* AI Ecosystem Auditor */}
+                    <div
+                      className="bg-[#121620] border border-blue-500/30 rounded-2xl p-6 mb-12 relative overflow-hidden shadow-[0_0_30px_rgba(59,130,246,0.1)]">
+                      <div
+                        className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 blur-[80px] rounded-full pointer-events-none">
+                      </div>
+
+                      <h3 className="text-xl font-bold mb-2 flex items-center gap-2 text-blue-400 relative z-10">
+                        <Brain size={20} /> Auditor de Ecosistema IA ✨
+                      </h3>
+                      <p className="text-sm text-gray-400 mb-6 relative z-10">¿No sabes qué plataforma te conviene más?
+                        Describe tus hábitos musicales y la red neuronal te recomendará tu hogar ideal.</p>
+
+                      <div className="flex flex-col md:flex-row gap-4 mb-4 relative z-10">
+                        <input type="text" value={auditInput} onChange={(e)=> setAuditInput(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleAudit()}
+                        placeholder="Ej: 'Me gusta el K-Pop, los audios Hi-Fi y escuchar directos raros'..."
+                        className="flex-1 bg-[#0d1117] border border-blue-500/30 rounded-xl px-4 py-3 text-white
+                        focus:outline-none focus:border-blue-400 transition-colors shadow-inner"
+                        />
+                        <button onClick={handleAudit} disabled={isAuditing || !auditInput.trim()}
+                          className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 py-3 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 transition-all shadow-[0_0_15px_rgba(59,130,246,0.4)]">
+                          {isAuditing ?
+                          <Loader2 size={18} className="animate-spin" /> :
+                          <Sparkles size={18} />}
+                          Auditar
+                        </button>
+                      </div>
+
+                      {/* Resultado de la Auditoría */}
+                      {auditResult && (
+                      <div className={`mt-6 p-6 rounded-xl border
+                        ${getPlatformColors(auditResult.recommendedPlatform).border}
+                        ${getPlatformColors(auditResult.recommendedPlatform).bg}
+                        ${getPlatformColors(auditResult.recommendedPlatform).shadow} animate-in slide-in-from-top-4
+                        relative z-10 transition-colors duration-500`}>
+                        <div className="flex flex-col md:flex-row gap-6 items-start">
+                          <div className="flex-1">
+                            <span
+                              className="text-xs font-bold tracking-widest uppercase flex items-center gap-1.5 mb-1 text-gray-400">
+                              <CheckCircle2 size={12} /> PLATAFORMA IDEAL DETECTADA
+                            </span>
+                            <h4 className={`text-3xl font-bold mb-2
+                              ${getPlatformColors(auditResult.recommendedPlatform).text}`}>
+                              {auditResult.recommendedPlatform} <span
+                                className="text-lg opacity-70">({auditResult.match} Afinidad)</span>
+                            </h4>
+                            <p className="text-sm text-gray-200 mb-4 leading-relaxed">
+                              {auditResult.analysis}
+                            </p>
+                          </div>
+                          <div className="w-full md:w-1/3 bg-black/40 p-4 rounded-lg border border-white/10">
+                            <h5 className="text-xs font-bold text-gray-400 mb-3">ESTRATEGIA DE MIGRACIÓN</h5>
+                            <ul className="space-y-2">
+                              {auditResult.strategy.map((step, idx) => (
+                              <li key={idx} className="text-xs text-gray-300 flex items-start gap-2">
+                                <span className={`${getPlatformColors(auditResult.recommendedPlatform).text}
+                                  mt-0.5`}>•</span>
+                                {step}
+                              </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                      {/* Spotify Card */}
+                      <div
+                        className="bg-[#161b26]/50 backdrop-blur-sm border border-[#1DB954]/30 rounded-2xl p-8 flex flex-col items-center relative overflow-hidden group hover:border-[#1DB954] hover:shadow-[0_0_30px_rgba(29,185,84,0.15)] transition-all">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-[#1DB954]/10 blur-3xl rounded-full"></div>
+                        <div className="w-20 h-20 rounded-full bg-[#1DB954]/10 flex items-center justify-center mb-6">
+                          <MonitorSpeaker size={32} className="text-[#1DB954]" />
+                        </div>
+                        <h3 className="text-xl font-bold mb-2">Spotify</h3>
+                        <p className="text-gray-400 text-sm text-center mb-8">Importa tus bibliotecas y escucha los tops
+                          mundiales en alta calidad.</p>
+                        <button
+                          className="w-full bg-[#1DB954] text-black font-bold py-3 rounded-full hover:scale-105 transition-transform shadow-[0_0_15px_rgba(29,185,84,0.4)]">
+                          VINCULAR CUENTA
+                        </button>
+                        <p className="mt-4 text-xs text-gray-500 font-mono">Estado: No Conectado</p>
+                      </div>
+
+                      {/* Deezer Card */}
+                      <div
+                        className="bg-[#161b26]/50 backdrop-blur-sm border border-[#A238FF]/30 rounded-2xl p-8 flex flex-col items-center relative overflow-hidden group hover:border-[#A238FF] hover:shadow-[0_0_30px_rgba(162,56,255,0.15)] transition-all">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-[#A238FF]/10 blur-3xl rounded-full"></div>
+                        <div className="w-20 h-20 rounded-full bg-[#A238FF]/10 flex items-center justify-center mb-6">
+                          <MonitorSpeaker size={32} className="text-[#A238FF]" />
+                        </div>
+                        <h3 className="text-xl font-bold mb-2">Deezer</h3>
+                        <p className="text-gray-400 text-sm text-center mb-8">Sincroniza tus Flow y mixes personalizados
+                          directamente en Neurid.</p>
+                        <button
+                          className="w-full bg-[#A238FF] text-white font-bold py-3 rounded-full hover:scale-105 transition-transform shadow-[0_0_15px_rgba(162,56,255,0.4)]">
+                          VINCULAR CUENTA
+                        </button>
+                        <p className="mt-4 text-xs text-gray-500 font-mono">Estado: No Conectado</p>
+                      </div>
+
+                      {/* YouTube Card */}
+                      <div
+                        className="bg-[#161b26]/50 backdrop-blur-sm border border-[#FF0000]/30 rounded-2xl p-8 flex flex-col items-center relative overflow-hidden group hover:border-[#FF0000] hover:shadow-[0_0_30px_rgba(255,0,0,0.15)] transition-all">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-[#FF0000]/10 blur-3xl rounded-full"></div>
+                        <div className="w-20 h-20 rounded-full bg-[#FF0000]/10 flex items-center justify-center mb-6">
+                          <Play size={32} className="text-[#FF0000] fill-current" />
+                        </div>
+                        <h3 className="text-xl font-bold mb-2">YouTube Music</h3>
+                        <p className="text-gray-400 text-sm text-center mb-8">Accede a mixes, covers y listas de
+                          reproducción comunitarias infinitas.</p>
+                        <button
+                          className="w-full bg-[#FF0000] text-white font-bold py-3 rounded-full hover:scale-105 transition-transform shadow-[0_0_15px_rgba(255,0,0,0.4)]">
+                          VINCULAR CUENTA
+                        </button>
+                        <p className="mt-4 text-xs text-gray-500 font-mono">Estado: No Conectado</p>
+                      </div>
+                    </div>
+                  </div>
+                  );
+                  };
+
+                  const DiscoverView = () => {
+                  const [service, setService] = useState('spotify');
+
+                  // --- Nuevos estados para el Oráculo de Tendencias (Gemini) ---
+                  const [trendPrompt, setTrendPrompt] = useState("");
+                  const [isHunting, setIsHunting] = useState(false);
+                  const [trendResult, setTrendResult] = useState(null);
+
+                  // Configuración visual por plataforma para mantener la estética neón/cyberpunk
+                  const serviceConfig = {
+                  spotify: { name: 'Spotify', color: 'text-[#1DB954]', bg: 'bg-[#1DB954]/10', border:
+                  'border-[#1DB954]/50', hover: 'group-hover:border-[#1DB954]', glow:
+                  'shadow-[0_0_15px_rgba(29,185,84,0.3)]' },
+                  deezer: { name: 'Deezer', color: 'text-[#A238FF]', bg: 'bg-[#A238FF]/10', border:
+                  'border-[#A238FF]/50', hover: 'group-hover:border-[#A238FF]', glow:
+                  'shadow-[0_0_15px_rgba(162,56,255,0.3)]' },
+                  youtube: { name: 'YouTube Music', color: 'text-[#FF0000]', bg: 'bg-[#FF0000]/10', border:
+                  'border-[#FF0000]/50', hover: 'group-hover:border-[#FF0000]', glow:
+                  'shadow-[0_0_15px_rgba(255,0,0,0.3)]' },
+                  };
+
+                  const activeStyle = serviceConfig[service];
+
+                  const handleTrendHunt = async () => {
+                  if (!trendPrompt.trim()) return;
+                  setIsHunting(true);
+                  setTrendResult(null);
+
+                  const apiKey = "";
+                  const systemInstruction = `Eres el Oráculo de Tendencias Musicales de Neurid Studio.
+                  El usuario te pedirá investigar qué está sonando o es tendencia en un nicho, subcultura, ciudad o
+                  escenario específico (ej: 'underground de Tokio' o 'clubs de Cyberpunk').
+                  Actúa como un experto curador de tendencias.
+                  Devuelve SIEMPRE y ÚNICAMENTE un JSON válido con esta estructura estricta:
+                  {
+                  "trendName": "Nombre llamativo e inventivo de la tendencia detectada",
+                  "insight": "Análisis profundo (2 líneas) sobre por qué esta música está resonando en ese nicho
+                  actualmente",
+                  "tracks": [
+                  { "title": "Canción real", "artist": "Artista real", "reason": "Por qué es un himno representativo de
+                  esta tendencia" }
+                  ]
+                  }`;
+
+                  const payload = {
+                  contents: [{ parts: [{ text: `Descubre las tendencias musicales de: ${trendPrompt}` }] }],
+                  systemInstruction: { parts: [{ text: systemInstruction }] },
+                  generationConfig: { responseMimeType: "application/json" }
+                  };
+
+                  const maxRetries = 5;
+                  const delays = [1000, 2000, 4000, 8000, 16000];
+                  let attempt = 0;
+                  let success = false;
+
+                  while (attempt < maxRetries && !success) { try { const response=await
+                    fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`,
+                    { method: 'POST' , headers: { 'Content-Type' : 'application/json' }, body: JSON.stringify(payload)
+                    }); if (!response.ok) throw new Error("API Error"); const data=await response.json(); const
+                    textResponse=data.candidates?.[0]?.content?.parts?.[0]?.text; if (textResponse) {
+                    setTrendResult(JSON.parse(textResponse)); success=true; } else { throw new Error("Respuesta
+                    inválida"); } } catch (err) { attempt++; if (attempt>= maxRetries) {
+                    console.error("Fallo en el Oráculo de Tendencias:", err);
+                    } else {
+                    await new Promise(resolve => setTimeout(resolve, delays[attempt - 1]));
+                    }
+                    }
+                    }
+                    setIsHunting(false);
+                    };
+
+                    return (
+                    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10">
+
+                      {/* Header y Selector de Plataforma */}
+                      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-6">
+                        <div>
+                          <h2 className="text-3xl font-bold tracking-tight mb-1 flex items-center gap-3">
+                            <Compass className="text-emerald-400" size={28} />
+                            Descubrir
+                          </h2>
+                          <p className="text-gray-400 text-sm">Explora las tendencias mundiales por plataforma o
+                            descubre nichos con IA.</p>
+                        </div>
+
+                        <div className="flex bg-[#161b26] p-1.5 rounded-xl border border-white/5 shrink-0">
+                          {Object.keys(serviceConfig).map(s => (
+                          <button key={s} onClick={()=> setService(s)}
+                            className={`px-5 py-2.5 rounded-lg text-sm font-bold transition-all duration-300 ${
+                            service === s
+                            ? `${serviceConfig[s].bg} ${serviceConfig[s].color} ${serviceConfig[s].glow}`
+                            : 'text-gray-500 hover:text-white hover:bg-white/5'
+                            }`}
+                            >
+                            {serviceConfig[s].name}
+                          </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Oráculo de Tendencias IA */}
+                      <div
+                        className="bg-gradient-to-r from-[#161b26] to-[#121620] border border-orange-500/30 rounded-2xl p-6 mb-12 shadow-[0_0_30px_rgba(249,115,22,0.1)] relative overflow-hidden group">
+                        <div
+                          className="absolute top-0 left-0 w-64 h-64 bg-orange-500/10 blur-[80px] rounded-full pointer-events-none">
+                        </div>
+
+                        <div
+                          className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6 mb-4">
+                          <div className="flex-1">
+                            <h3 className="text-xl font-bold mb-2 flex items-center gap-2 text-orange-400">
+                              <Radar size={20} /> Oráculo de Tendencias IA ✨
+                            </h3>
+                            <p className="text-sm text-gray-400">Caza tendencias específicas. Pregunta a la IA qué está
+                              sonando en cualquier subcultura o rincón del mundo.</p>
+                          </div>
+                          <div className="flex w-full md:w-auto gap-3">
+                            <input type="text" value={trendPrompt} onChange={(e)=> setTrendPrompt(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleTrendHunt()}
+                            placeholder="Ej: 'Underground de Berlín' o 'Lo-Fi para estudiar'..."
+                            className="w-full md:w-64 bg-[#0d1117] border border-orange-500/30 rounded-xl px-4 py-2.5
+                            text-sm text-white focus:outline-none focus:border-orange-500 transition-colors"
+                            />
+                            <button onClick={handleTrendHunt} disabled={isHunting || !trendPrompt.trim()}
+                              className="bg-orange-500 hover:bg-orange-400 text-black font-bold px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 transition-all shadow-[0_0_15px_rgba(249,115,22,0.4)]">
+                              {isHunting ?
+                              <Loader2 size={16} className="animate-spin" /> :
+                              <Flame size={16} />}
+                              Cazar
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Resultados del Oráculo */}
+                        {trendResult && (
+                        <div
+                          className="mt-6 bg-black/40 border border-orange-500/20 rounded-xl p-5 animate-in slide-in-from-top-4 relative z-10">
+                          <div className="mb-5">
+                            <span
+                              className="text-orange-500/70 text-[10px] font-bold tracking-widest uppercase flex items-center gap-1.5 mb-1">
+                              <Radar size={12} /> TENDENCIA DETECTADA
+                            </span>
+                            <h4
+                              className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-yellow-400 mb-2">
+                              {trendResult.trendName}
+                            </h4>
+                            <p className="text-sm text-gray-300 italic border-l-2 border-orange-500 pl-3">
+                              {trendResult.insight}
+                            </p>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {trendResult.tracks.map((track, idx) => (
+                            <div key={idx}
+                              className="bg-[#121620] p-4 rounded-lg border border-orange-500/20 hover:border-orange-500/50 transition-colors group cursor-pointer relative overflow-hidden">
+                              <div
+                                className="absolute top-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Play size={16} className="text-orange-400 fill-current" />
+                              </div>
+                              <h5 className="font-bold text-white text-sm truncate pr-6">{track.title}</h5>
+                              <p className="text-orange-300 text-xs mb-3">{track.artist}</p>
+                              <p className="text-gray-500 text-xs italic line-clamp-2">"{track.reason}"</p>
+                            </div>
+                            ))}
+                          </div>
+                        </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-12">
+
+                        {/* Sección: Playlists más escuchadas */}
+                        <section>
+                          <h3 className={`text-xl font-bold mb-6 flex items-center gap-2 ${activeStyle.color}`}>
+                            <Library size={22} /> Playlists más escuchadas
+                          </h3>
+                          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-5">
+                            {[1, 2, 3, 4, 5].map(i => (
+                            <div key={i} className={`bg-[#161b26]/60 p-4 rounded-2xl border border-white/5
+                              ${activeStyle.hover} transition-all duration-300 group cursor-pointer`}>
+                              <div className="aspect-square rounded-xl mb-4 overflow-hidden relative shadow-lg">
+                                <img src={`https://images.unsplash.com/photo-${1550000000000 + i *
+                                  11111}?auto=format&fit=crop&q=80&w=300`}
+                                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                                  alt="playlist" />
+                                <div
+                                  className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                                  <div className={`w-12 h-12 rounded-full ${activeStyle.bg} flex items-center
+                                    justify-center backdrop-blur-md shadow-lg`}>
+                                    <Play size={20} className={`fill-current ${activeStyle.color} ml-1`} />
+                                  </div>
+                                </div>
+                              </div>
+                              <p className="font-bold text-sm truncate text-white mb-1">Top 50 Global</p>
+                              <p className="text-xs text-gray-500 truncate">Las más virales de hoy</p>
+                            </div>
+                            ))}
+                          </div>
+                        </section>
+
+                        {/* Sección: Cantantes más escuchados */}
+                        <section>
+                          <h3 className={`text-xl font-bold mb-6 flex items-center gap-2 ${activeStyle.color}`}>
+                            <User size={22} /> Cantantes más escuchados
+                          </h3>
+                          <div className="flex gap-8 overflow-x-auto custom-scrollbar pb-6">
+                            {[1, 2, 3, 4, 5, 6, 7].map(i => (
+                            <div key={i} className="flex flex-col items-center gap-3 shrink-0 cursor-pointer group">
+                              <div className={`w-32 h-32 rounded-full overflow-hidden border-2 border-transparent
+                                ${activeStyle.hover} transition-colors duration-300 p-1 shadow-lg`}>
+                                <img src={`https://images.unsplash.com/photo-${1600000000000 + i *
+                                  55555}?auto=format&fit=crop&q=80&w=250`}
+                                  className="w-full h-full object-cover rounded-full" alt="artist" />
+                                <div
+                                  className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 rounded-full transition-opacity">
+                                </div>
+                              </div>
+                              <p className="text-sm font-bold text-gray-300 group-hover:text-white transition-colors">
+                                Cantante {i}</p>
+                              <p className="text-[10px] text-gray-500 font-mono tracking-widest uppercase">Artist</p>
+                            </div>
+                            ))}
+                          </div>
+                        </section>
+
+                        {/* Sección: Canciones más escuchadas */}
+                        <section>
+                          <h3 className={`text-xl font-bold mb-6 flex items-center gap-2 ${activeStyle.color}`}>
+                            <ListMusic size={22} /> Canciones más escuchadas
+                          </h3>
+                          <div className="bg-[#161b26]/50 rounded-2xl border border-white/5 overflow-hidden shadow-lg">
+                            {[1, 2, 3, 4, 5].map(i => (
+                            <div key={i}
+                              className="flex items-center gap-4 p-4 border-b border-white/5 hover:bg-white/5 group cursor-pointer transition-colors">
+                              <span className={`font-mono text-sm w-6 text-center ${i <=3 ? activeStyle.color
+                                + ' font-bold' : 'text-gray-600' }`}>{i}</span>
+                              <div
+                                className="w-12 h-12 rounded-lg bg-gray-800 overflow-hidden relative shrink-0 shadow-md">
+                                <img src={`https://images.unsplash.com/photo-${1580000000000 + i *
+                                  22222}?auto=format&fit=crop&q=80&w=150`}
+                                  className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+                                  alt="song cover" />
+                                <div
+                                  className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 transition-opacity">
+                                  <Play size={16} className={`fill-current ${activeStyle.color}`} />
+                                </div>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p
+                                  className="font-bold text-sm text-white truncate group-hover:underline decoration-1 underline-offset-2">
+                                  Hit Mundial {i}</p>
+                                <p className="text-xs text-gray-400 truncate mt-0.5">Artista Top Global</p>
+                              </div>
+                              <div className="flex items-center gap-6">
+                                <div className="hidden md:flex gap-1">
+                                  <span className="w-1 h-3 bg-gray-600 rounded-full animate-pulse"
+                                    style={{animationDelay: `${i*0.1}s`}}></span>
+                                  <span className="w-1 h-4 bg-gray-600 rounded-full animate-pulse"
+                                    style={{animationDelay: `${i*0.2}s`}}></span>
+                                  <span className="w-1 h-2 bg-gray-600 rounded-full animate-pulse"
+                                    style={{animationDelay: `${i*0.3}s`}}></span>
+                                </div>
+                                <span className="text-gray-500 text-xs font-mono mr-2">3:{10 + i * 5}</span>
+                              </div>
+                            </div>
+                            ))}
+                          </div>
+                        </section>
+
+                      </div>
+                    </div>
+                    );
+                    };
+
+                    const SettingsView = () => (
+                    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl">
+                      <h2 className="text-3xl font-bold tracking-tight mb-8">Ajustes del Sistema y IA</h2>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        {/* Columna 1 */}
+                        <div className="space-y-6">
+                          <div className="bg-[#161b26]/80 border border-white/5 rounded-xl p-6">
+                            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-emerald-400">
+                              <Cpu size={18} /> Configuración IA Local
+                            </h3>
+                            <div className="space-y-4">
+                              <div>
+                                <label className="text-sm text-gray-400 block mb-1">Modelo LLM Activo</label>
+                                <select
+                                  className="w-full bg-[#0d1117] border border-white/10 rounded-lg p-2.5 text-sm outline-none focus:border-emerald-500 transition-colors">
+                                  <option>Gemma 2B (via Ollama) - Recomendado</option>
+                                  <option>Llama 3 8B (via Ollama)</option>
+                                  <option>API Externa (OpenAI)</option>
+                                </select>
+                              </div>
+                              <div className="flex items-center justify-between pt-2">
+                                <div>
+                                  <p className="text-sm font-medium">Asistente por Voz Activo</p>
+                                  <p className="text-xs text-gray-500">Escuchar comando "Oye Neurid"</p>
+                                </div>
+                                <div
+                                  className="w-12 h-6 bg-emerald-500 rounded-full relative cursor-pointer shadow-[0_0_10px_rgba(52,211,153,0.3)]">
+                                  <div className="w-5 h-5 bg-white rounded-full absolute right-0.5 top-0.5"></div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="bg-[#161b26]/80 border border-white/5 rounded-xl p-6">
+                            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                              <Settings size={18} /> General
+                            </h3>
+                            <div className="space-y-4">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm text-gray-300">Tauri Core Status</span>
+                                <span
+                                  className="flex items-center gap-1 text-xs text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded-md border border-emerald-400/20">
+                                  <CheckCircle2 size={12} /> Running (Rust)
+                                </span>
+                              </div>
+                              <div>
+                                <label className="text-sm text-gray-400 block mb-1">Idioma de Interfaz</label>
+                                <select
+                                  className="w-full bg-[#0d1117] border border-white/10 rounded-lg p-2.5 text-sm outline-none">
+                                  <option>Español (España)</option>
+                                  <option>English (US)</option>
+                                </select>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Columna 2 */}
+                        <div className="space-y-6">
+                          <div className="bg-[#161b26]/80 border border-white/5 rounded-xl p-6">
+                            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-purple-400">
+                              <MonitorSpeaker size={18} /> Motor de Audio (Tauri/Rust)
+                            </h3>
+                            <div className="space-y-4">
+                              <div>
+                                <label className="text-sm text-gray-400 block mb-1">Dispositivo de Salida</label>
+                                <select
+                                  className="w-full bg-[#0d1117] border border-white/10 rounded-lg p-2.5 text-sm outline-none focus:border-purple-500 transition-colors">
+                                  <option>Predeterminado del Sistema (WASAPI)</option>
+                                  <option>ASIO4ALL v2</option>
+                                  <option>Realtek High Definition Audio</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className="text-sm text-gray-400 block mb-2">Calidad de Streaming</label>
+                                <div className="flex bg-[#0d1117] rounded-lg p-1 border border-white/10">
+                                  <button
+                                    className="flex-1 py-1.5 text-xs text-gray-400 hover:text-white rounded-md">Normal</button>
+                                  <button
+                                    className="flex-1 py-1.5 text-xs bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded-md font-medium shadow-[0_0_10px_rgba(168,85,247,0.2)]">Alta
+                                    (320kbps)</button>
+                                  <button
+                                    className="flex-1 py-1.5 text-xs text-gray-400 hover:text-white rounded-md">Lossless</button>
+                                </div>
+                              </div>
+                              <div className="flex items-center justify-between pt-2">
+                                <div>
+                                  <p className="text-sm font-medium">Auto-escanear Local al Iniciar</p>
+                                  <p className="text-xs text-gray-500">Actualiza la base de datos de Rust</p>
+                                </div>
+                                <div
+                                  className="w-12 h-6 bg-purple-500 rounded-full relative cursor-pointer shadow-[0_0_10px_rgba(168,85,247,0.3)]">
+                                  <div className="w-5 h-5 bg-white rounded-full absolute right-0.5 top-0.5"></div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    );
+
+                    // --- UI Helpers ---
+
+                    const NavItem = ({ icon, label, active, onClick, isNeon }) => {
+                    return (
+                    <button onClick={onClick} className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg
+                      transition-all duration-300 ${ active ? isNeon
+                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/50 shadow-[0_0_15px_rgba(52,211,153,0.2)]'
+                      : 'bg-white/10 text-white font-medium' : 'text-gray-400 hover:bg-white/5 hover:text-gray-200' }`}>
+                      {icon}
+                      <span className="text-sm">{label}</span>
+                    </button>
+                    );
+                    };
+
+                    const NeonCard = ({ title, subtitle, time, color, image }) => {
+                    const borderColor = color === 'emerald' ? 'border-emerald-400/50' : 'border-purple-400/50';
+                    const shadowColor = color === 'emerald' ? 'hover:shadow-[0_0_20px_rgba(52,211,153,0.3)]' :
+                    'hover:shadow-[0_0_20px_rgba(168,85,247,0.3)]';
+
+                    return (
+                    <div className={`bg-[#161b26]/80 backdrop-blur-md rounded-2xl p-4 border ${borderColor}
+                      ${shadowColor} transition-all duration-300 group cursor-pointer relative overflow-hidden`}>
+                      <div className="w-full aspect-square rounded-xl overflow-hidden relative mb-4">
+                        <img src={image} alt={title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                        <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors">
+                        </div>
+                        <div
+                          className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-sm text-xs px-2 py-1 rounded text-white/90">
+                          {time}
+                        </div>
+                        {/* Play button overlay */}
+                        <div
+                          className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className={`w-12 h-12 rounded-full bg-${color}-500 flex items-center justify-center
+                            shadow-[0_0_15px_rgba(0,0,0,0.5)]`}>
+                            <Play size={20} className="text-white fill-current ml-1" />
+                          </div>
+                        </div>
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-white tracking-wide text-sm truncate">{title}</h3>
+                        <p className="text-gray-400 text-xs mt-1">{subtitle}</p>
+                      </div>
+                    </div>
+                    );
+                    };
+
+                    export default App;
