@@ -15,7 +15,7 @@ class AIWorker {
   }
 }
 
-self.onmessage = async (event: MessageEvent) => {
+self.addEventListener('message', async (event: any) => {
   const { command } = event.data;
   if (!command || !command.trim()) return;
 
@@ -49,4 +49,4 @@ self.onmessage = async (event: MessageEvent) => {
     console.error("AI Worker Error:", error);
     self.postMessage({ type: 'error', error: error.message || 'Error en la IA local.' });
   }
-};
+});
