@@ -753,6 +753,130 @@ const App = () => {
 
   const currentTrack = currentIndex !== null ? queue[currentIndex] : null;
 
+  const aiWorkerRef = useRef<Worker | null>(null);
+  const workerPendingCallback = useRef<((handled: boolean) => void) | null>(null);
+
+  useEffect(() => {
+    // Inicializar Web Worker para comandos locales de IA
+    const worker = new Worker(new URL('./ai/aiWorker.ts', import.meta.url), { type: 'module' });
+
+    worker.onmessage = async (e) => {
+      const { type, status, bestMatch, score, command, error } = e.data;
+      if (type === 'status' && status) {
+        setAiStatus(status);
+      } else if (type === 'error') {
+        console.error("AI Worker Error:", error);
+        setAiStatus("Error en la IA local.");
+        setTimeout(() => setAiStatus(""), 3000);
+        if (workerPendingCallback.current) {
+          workerPendingCallback.current(false);
+        }
+      } else if (type === 'result') {
+        setAiStatus("");
+        if (score > 0.35) {
+          const store = usePlayerStore.getState();
+          switch (bestMatch) {
+            case 'play music':
+              await store.resume();
+              setAiStatus('Acción: Reproduciendo...');
+              break;
+            case 'pause music':
+              await store.pause();
+              setAiStatus('Acción: Pausando...');
+              break;
+            case 'next track':
+              await store.nextTrack();
+              setAiStatus('Acción: Siguiente pista...');
+              break;
+            case 'previous track':
+              if (command.includes('antes') || command.includes('anterior')) {
+                  await store.prevTrack();
+                  setAiStatus('Acción: Volviendo a la anterior...');
+              } else {
+                  await store.resume();
+                  setAiStatus('Reproduciendo...');
+              }
+              break;
+            case 'create playlist': {
+              const title = command.toLowerCase()
+                .replace('crea', '')
+                .replace('crear', '')
+                .replace('lista', '')
+                .replace('playlist', '')
+                .replace('llamada', '')
+                .trim();
+              if (title) {
+                await store.createPlaylist(title);
+                setAiStatus(`Playlist "${title}" creada con éxito.`);
+                store.setActiveTab('playlists');
+              } else {
+                setAiStatus('¿Cómo quieres llamar a la lista?');
+              }
+              break;
+            }
+            case 'search music': {
+              const query = command.toLowerCase()
+                .replace('busca', '')
+                .replace('buscar', '')
+                .replace('search', '')
+                .replace('pon', '')
+                .trim();
+              
+              if (query) {
+                setAiStatus(`Buscando "${query}" en YouTube...`);
+                await store.searchYouTube(query);
+                store.setActiveTab('integrations');
+              } else {
+                setAiStatus('¿Qué quieres que busque?');
+              }
+              break;
+            }
+            case 'switch view': {
+              const cmd = command.toLowerCase();
+              if (cmd.includes('libreria') || cmd.includes('library')) store.setActiveTab('library');
+              else if (cmd.includes('playlist') || cmd.includes('lista')) store.setActiveTab('playlists');
+              else if (cmd.includes('letra') || cmd.includes('lyrics')) store.setActiveTab('lyrics');
+              else if (cmd.includes('ajuste') || cmd.includes('config') || cmd.includes('settings')) store.setActiveTab('settings');
+              else if (cmd.includes('vincular') || cmd.includes('conectar') || cmd.includes('integrations')) store.setActiveTab('integrations');
+              else store.setActiveTab('neurid_ai');
+              
+              setAiStatus('Cambiando de vista...');
+              break;
+            }
+            default:
+              setAiStatus('Comando no reconocido por la IA.');
+          }
+          if (workerPendingCallback.current) {
+            workerPendingCallback.current(true);
+          }
+        } else {
+          if (workerPendingCallback.current) {
+            workerPendingCallback.current(false);
+          }
+        }
+        setTimeout(() => setAiStatus(""), 3000);
+      }
+    };
+
+    aiWorkerRef.current = worker;
+    return () => {
+      worker.terminate();
+    };
+  }, []);
+
+  const processCommandWithWorker = (command: string): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (!aiWorkerRef.current) {
+        resolve(false);
+        return;
+      }
+      workerPendingCallback.current = (handled) => {
+        resolve(handled);
+      };
+      aiWorkerRef.current.postMessage({ command });
+    });
+  };
+
   useEffect(() => {
     loadSavedPlaylists();
     // Auto-initialize IA
@@ -775,6 +899,13 @@ const App = () => {
   const handleAISearch = async (query: string) => {
     if (!query.trim()) return;
     setAiStatus("Neurid buscando...");
+    
+    // Intentar procesar como comando local primero con Web Worker
+    const wasCommand = await processCommandWithWorker(query);
+    if (wasCommand) {
+      return;
+    }
+
     usePlayerStore.setState({ isResolving: true, activeTab: 'search' });
     try {
       const webResults = await localAIService.searchWeb(query);
@@ -866,6 +997,12 @@ const App = () => {
     }
 
     try {
+      // Intentar procesar como comando local primero con Web Worker
+      const wasCommand = await processCommandWithWorker(input);
+      if (wasCommand) {
+        setTerminalHistory(prev => [...prev, `[OK] Comando local procesado y ejecutado.`]);
+        return;
+      }
       const response = await localAIService.query(input);
       setTerminalHistory(prev => [...prev, response.message || ""]);
     } catch (err: any) {
@@ -947,7 +1084,7 @@ const SearchResultsView = () => {
   const renderContent = () => {
     switch (activeTab) {
       case 'discover': return <DiscoverView onAlchemist={handleAlchemist} />;
-      case 'neurid_ai': return <NeuridAIView />;
+      case 'neurid_ai': return <NeuridAIView onProcessCommand={processCommandWithWorker} />;
       case 'library': return <LibraryView />;
       case 'playlists': return <PlaylistsView />;
       case 'lyrics': return <LyricsView />;
@@ -1276,7 +1413,7 @@ const SearchResultsView = () => {
   );
 };
 
-const NeuridAIView = () => {
+const NeuridAIView = ({ onProcessCommand }: { onProcessCommand: (text: string) => Promise<boolean> }) => {
   const [chatInput, setChatInput] = useState('');
   const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([
     { role: 'assistant', content: '¡Hola! Soy el núcleo de Inteligencia Artificial local Neurid (Gemma-2b). ¿Qué te gustaría crear o buscar hoy? Puedo diseñar playlists, escribir lore para canciones o hablar de música.' }
@@ -1294,6 +1431,12 @@ const NeuridAIView = () => {
     setChatInput('');
     setIsAiTyping(true);
     try {
+      const wasCommand = await onProcessCommand(text);
+      if (wasCommand) {
+        setMessages(prev => [...prev, { role: 'assistant', content: `[Comando Ejecutado] Ejecuté la instrucción localmente en el reproductor.` }]);
+        setIsAiTyping(false);
+        return;
+      }
       const response = await localAIService.query(text);
       setMessages(prev => [...prev, { role: 'assistant', content: response.message }]);
     } catch (err: any) {

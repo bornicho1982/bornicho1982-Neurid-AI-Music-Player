@@ -29,77 +29,98 @@ struct AppState {
 
 #[tauri::command]
 async fn initialize_ia(state: State<'_, AppState>) -> Result<String, String> {
-    let mut backend_lock = state.ai_backend.lock().unwrap();
-    let mut model_lock = state.ai_model.lock().unwrap();
+    let ai_backend = state.ai_backend.clone();
+    let ai_model = state.ai_model.clone();
 
-    if model_lock.is_some() {
-        return Ok("IA ya inicializada".to_string());
+    // Verificación rápida del estado antes de spawnear el hilo
+    {
+        let model_lock = ai_model.lock().unwrap();
+        if model_lock.is_some() {
+            return Ok("IA ya inicializada".to_string());
+        }
     }
 
-    // Inicializar Backend
-    let backend = LlamaBackend::init().map_err(|e| format!("Error backend: {:?}", e))?;
-    *backend_lock = Some(backend);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut backend_lock = ai_backend.lock().unwrap();
+        let mut model_lock = ai_model.lock().unwrap();
 
-    // Ruta al modelo (El usuario deberá tenerlo en esta ruta o descargarlo)
-    // Usaremos una ruta estándar en la carpeta de datos del usuario en el futuro
-    let model_path = PathBuf::from("gemma-2b-it-q4_k_m.gguf");
-    
-    if !model_path.exists() {
-        return Err("No se encuentra el archivo 'gemma-2b-it-q4_k_m.gguf' en el directorio raíz. Por favor, descárgalo de HuggingFace.".to_string());
-    }
+        if model_lock.is_some() {
+            return Ok("IA ya inicializada".to_string());
+        }
 
-    let model_params = LlamaModelParams::default();
-    let model = LlamaModel::load_from_file(backend_lock.as_ref().unwrap(), &model_path, &model_params)
-        .map_err(|e| format!("Error cargando modelo: {:?}", e))?;
+        // Inicializar Backend
+        let backend = LlamaBackend::init().map_err(|e| format!("Error backend: {:?}", e))?;
+        *backend_lock = Some(backend);
 
-    *model_lock = Some(model);
-    Ok("Núcleo Neuronal (Llama.cpp) cargado correctamente".to_string())
+        // Ruta al modelo
+        let model_path = PathBuf::from("gemma-2b-it-q4_k_m.gguf");
+        
+        if !model_path.exists() {
+            return Err("No se encuentra el archivo 'gemma-2b-it-q4_k_m.gguf' en el directorio raíz. Por favor, descárgalo de HuggingFace.".to_string());
+        }
+
+        let model_params = LlamaModelParams::default();
+        let model = LlamaModel::load_from_file(backend_lock.as_ref().unwrap(), &model_path, &model_params)
+            .map_err(|e| format!("Error cargando modelo: {:?}", e))?;
+
+        *model_lock = Some(model);
+        Ok("Núcleo Neuronal (Llama.cpp) cargado correctamente".to_string())
+    })
+    .await
+    .map_err(|e| format!("Error en ejecución del hilo de inicialización: {:?}", e))?
 }
 
 #[tauri::command]
 async fn query_ia(state: State<'_, AppState>, prompt: String) -> Result<String, String> {
-    let model_lock = state.ai_model.lock().unwrap();
-    let model = model_lock.as_ref().ok_or("La IA no ha sido inicializada.")?;
-    let backend_lock = state.ai_backend.lock().unwrap();
-    let backend = backend_lock.as_ref().unwrap();
+    let ai_backend = state.ai_backend.clone();
+    let ai_model = state.ai_model.clone();
 
-    let ctx_params = LlamaContextParams::default();
-    let mut ctx = model.new_context(backend, ctx_params).map_err(|e| format!("Error contexto: {:?}", e))?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let model_lock = ai_model.lock().unwrap();
+        let model = model_lock.as_ref().ok_or("La IA no ha sido inicializada.")?;
+        let backend_lock = ai_backend.lock().unwrap();
+        let backend = backend_lock.as_ref().unwrap();
 
-    // Tokenizar prompt
-    let tokens = model.str_to_token(&prompt, AddBos::Always).map_err(|e| format!("Error tokens: {:?}", e))?;
-    
-    // Preparar batch
-    let mut batch = LlamaBatch::new(512, 1);
-    let last_index = (tokens.len() - 1) as i32;
-    for (i, token) in tokens.into_iter().enumerate() {
-        batch.add(token, i as i32, &[0], i as i32 == last_index);
-    }
+        let ctx_params = LlamaContextParams::default();
+        let mut ctx = model.new_context(backend, ctx_params).map_err(|e| format!("Error contexto: {:?}", e))?;
 
-    ctx.decode(&mut batch).map_err(|e| format!("Error decode: {:?}", e))?;
-
-    // Loop de generación simple (max 100 tokens)
-    let mut response = String::new();
-    let mut sampler = LlamaSampler::chain_simple([
-        LlamaSampler::dist(0),
-        LlamaSampler::temp(0.8),
-    ]);
-
-    let mut current_pos = last_index + 1;
-    for _ in 0..100 {
-        let token = sampler.sample(&ctx, batch.n_tokens() - 1);
-        if model.is_eog_token(token) { break; }
+        // Tokenizar prompt
+        let tokens = model.str_to_token(&prompt, AddBos::Always).map_err(|e| format!("Error tokens: {:?}", e))?;
         
-        let piece = model.token_to_str(token, Special::Plaintext).map_err(|e| e.to_string())?;
-        response.push_str(&piece);
+        // Preparar batch
+        let mut batch = LlamaBatch::new(512, 1);
+        let last_index = (tokens.len() - 1) as i32;
+        for (i, token) in tokens.into_iter().enumerate() {
+            batch.add(token, i as i32, &[0], i as i32 == last_index);
+        }
 
-        batch.clear();
-        batch.add(token, current_pos, &[0], true);
-        ctx.decode(&mut batch).map_err(|e| format!("Error decode loop: {:?}", e))?;
-        current_pos += 1;
-    }
+        ctx.decode(&mut batch).map_err(|e| format!("Error decode: {:?}", e))?;
 
-    Ok(response.trim().to_string())
+        // Loop de generación simple (max 100 tokens)
+        let mut response = String::new();
+        let mut sampler = LlamaSampler::chain_simple([
+            LlamaSampler::dist(0),
+            LlamaSampler::temp(0.8),
+        ]);
+
+        let mut current_pos = last_index + 1;
+        for _ in 0..100 {
+            let token = sampler.sample(&ctx, batch.n_tokens() - 1);
+            if model.is_eog_token(token) { break; }
+            
+            let piece = model.token_to_str(token, Special::Plaintext).map_err(|e| e.to_string())?;
+            response.push_str(&piece);
+
+            batch.clear();
+            batch.add(token, current_pos, &[0], true);
+            ctx.decode(&mut batch).map_err(|e| format!("Error decode loop: {:?}", e))?;
+            current_pos += 1;
+        }
+
+        Ok(response.trim().to_string())
+    })
+    .await
+    .map_err(|e| format!("Error en ejecución del hilo de consulta: {:?}", e))?
 }
 
 #[tauri::command]
@@ -154,6 +175,14 @@ fn add_to_queue(state: State<'_, AppState>, path: String, title: String) -> Resu
         duration: None,
     };
     queue.push(track);
+    Ok(queue.clone())
+}
+
+#[tauri::command]
+fn replace_queue(state: State<'_, AppState>, tracks: Vec<Track>) -> Result<Vec<Track>, String> {
+    let player = state.player.lock().unwrap();
+    let mut queue = player.queue.lock().unwrap();
+    *queue = tracks;
     Ok(queue.clone())
 }
 
@@ -276,6 +305,7 @@ async fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             add_to_queue,
+            replace_queue,
             scan_local_folder,
             play_track,
             pause_audio,
