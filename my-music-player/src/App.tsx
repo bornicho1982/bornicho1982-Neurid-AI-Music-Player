@@ -888,13 +888,8 @@ const App = () => {
   }, [loadSavedPlaylists]);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      if (isPlaying) {
-        usePlayerStore.getState().updateTime();
-      }
-    }, 500);
-    return () => clearInterval(interval);
-  }, [isPlaying]);
+    usePlayerStore.getState().setupAudioTelemetry();
+  }, []);
 
   const handleAISearch = async (query: string) => {
     if (!query.trim()) return;

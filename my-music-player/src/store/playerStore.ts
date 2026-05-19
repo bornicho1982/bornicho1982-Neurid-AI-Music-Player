@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { addOrUpdateTracks, getAllTracks, TrackEntity, PlaylistEntity, savePlaylist, getAllPlaylists, getPlaylistTracks, deletePlaylist, createEmptyPlaylist, addTrackToPlaylist, removeTrackFromPlaylist } from '../db';
 import { pipedResolver } from '../services/pipedResolver';
 import { spotifyConnector } from '../services/spotifyConnector';
@@ -34,6 +35,7 @@ interface PlayerState {
   analyser: AnalyserNode | null;
   resolvedNextTrackUrl: string | null;
   lastPlayedTrack: Track | null;
+  isTelemetrySetup: boolean;
 
   // UI Actions
   setActiveTab: (tab: string) => void;
@@ -57,6 +59,7 @@ interface PlayerState {
 
   // Playback Actions
   updateTime: () => Promise<void>;
+  setupAudioTelemetry: () => Promise<void>;
   preResolveNext: () => Promise<void>;
   fetchLyrics: () => Promise<void>;
   setQuality: (quality: '128k' | '256k' | 'original') => void;
@@ -88,6 +91,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   analyser: null,
   resolvedNextTrackUrl: null,
   lastPlayedTrack: null,
+  isTelemetrySetup: false,
 
   setActiveTab: (tab) => set({ activeTab: tab }),
 
@@ -425,6 +429,24 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     } catch (e) {
       console.error("Error updating time", e);
     }
+  },
+
+  setupAudioTelemetry: async () => {
+    if (get().isTelemetrySetup) return;
+
+    await listen<{ currentTime: number }>('audio_tick', (event) => {
+      const time = event.payload.currentTime;
+      set({ currentTime: time });
+
+      // Pre-resolve logic (if > 80% and duration known)
+      const { queue, currentIndex } = get();
+      const track = currentIndex !== null ? queue[currentIndex] : null;
+      if (track && track.duration && time / track.duration > 0.8 && !get().resolvedNextTrackUrl) {
+        get().preResolveNext();
+      }
+    });
+
+    set({ isTelemetrySetup: true });
   },
 
   preResolveNext: async () => {
