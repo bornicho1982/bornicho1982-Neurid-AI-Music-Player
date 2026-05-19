@@ -143,7 +143,43 @@ async fn search_web_music(query: String) -> Result<Vec<serde_json::Value>, Strin
 }
 
 #[tauri::command]
-async fn authenticate_spotify(app_handle: tauri::AppHandle, client_id: String) -> Result<String, String> {
+fn save_token(app_handle: tauri::AppHandle, key: String, token: String) -> Result<(), String> {
+    let mut path = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&path).map_err(|e| e.to_string())?;
+    path.push("config.json");
+
+    let mut config: serde_json::Value = if path.exists() {
+        let file = std::fs::File::open(&path).map_err(|e| e.to_string())?;
+        serde_json::from_reader(file).unwrap_or(serde_json::json!({}))
+    } else {
+        serde_json::json!({})
+    };
+
+    config[key] = serde_json::Value::String(token);
+
+    let file = std::fs::File::create(&path).map_err(|e| e.to_string())?;
+    serde_json::to_writer_pretty(file, &config).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn get_token(app_handle: tauri::AppHandle, key: String) -> Result<Option<String>, String> {
+    let mut path = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    path.push("config.json");
+
+    if !path.exists() {
+        return Ok(None);
+    }
+
+    let file = std::fs::File::open(&path).map_err(|e| e.to_string())?;
+    let config: serde_json::Value = serde_json::from_reader(file).unwrap_or(serde_json::json!({}));
+    
+    let token = config.get(&key).and_then(|v| v.as_str()).map(|s| s.to_string());
+    Ok(token)
+}
+
+#[tauri::command]
+async fn authenticate_spotify(app_handle: tauri::AppHandle, client_id: String, client_secret: String) -> Result<String, String> {
     // 1. URL de autorización de Spotify
     let redirect_uri = "http://127.0.0.1:8888/callback";
     let auth_url = format!(
@@ -161,11 +197,51 @@ async fn authenticate_spotify(app_handle: tauri::AppHandle, client_id: String) -
         oauth::listen_for_oauth_callback(8888)
     })
     .await
-    .map_err(|e| format!("Error en servidor local (hilo): {}", e))?
+    .map_err(|e| format!("Error en ejecución del hilo de inicialización: {}", e))?
     .map_err(|e| format!("Error escuchando callback: {}", e))?;
 
-    // Retornamos el código capturado a modo de prueba.
-    Ok(code)
+    // 4. Intercambiar code por token en Rust
+    let client = reqwest::Client::new();
+    let token_url = "https://accounts.spotify.com/api/token";
+    
+    let params = [
+        ("grant_type", "authorization_code"),
+        ("code", &code),
+        ("redirect_uri", redirect_uri),
+        ("client_id", &client_id),
+        ("client_secret", &client_secret),
+    ];
+
+    let resp = client
+        .post(token_url)
+        .form(&params)
+        .send()
+        .await
+        .map_err(|e| format!("Error en POST de token: {}", e))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let err_text = resp.text().await.unwrap_or_default();
+        return Err(format!("Error en respuesta de token (status {}): {}", status, err_text));
+    }
+
+    let token_data: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("Error deserializando JSON de token: {}", e))?;
+
+    let access_token = token_data["access_token"]
+        .as_str()
+        .ok_or_else(|| "No access_token found in response".to_string())?;
+
+    // Guardar tokens de manera de persistencia local
+    save_token(app_handle.clone(), "spotify_access_token".to_string(), access_token.to_string())?;
+    
+    if let Some(refresh_token) = token_data["refresh_token"].as_str() {
+        save_token(app_handle.clone(), "spotify_refresh_token".to_string(), refresh_token.to_string())?;
+    }
+
+    Ok(access_token.to_string())
 }
 
 #[tauri::command]
@@ -191,6 +267,48 @@ fn replace_queue(state: State<'_, AppState>, tracks: Vec<Track>) -> Result<(), S
     queue.clear();
     queue.extend(tracks);
     Ok(())
+}
+
+#[tauri::command]
+fn scan_single_file(path: String) -> Result<Track, String> {
+    let path_buf = std::path::Path::new(&path);
+    if !path_buf.is_file() {
+        return Err("Ruta no es un archivo válido".to_string());
+    }
+
+    let mut track_title = path_buf.file_stem().unwrap_or_default().to_string_lossy().into_owned();
+    let mut track_artist = None;
+    let mut track_album = None;
+    let mut track_duration = None;
+
+    // Try to extract metadata using Lofty
+    if let Ok(tagged_file) = Probe::open(path_buf).and_then(|p| p.read()) {
+        let properties = tagged_file.properties();
+        track_duration = Some(properties.duration().as_secs_f32());
+
+        if let Some(tag) = tagged_file.primary_tag() {
+            if let Some(title) = tag.title() {
+                track_title = title.into_owned();
+            }
+            track_artist = tag.artist().map(|a| a.into_owned());
+            track_album = tag.album().map(|a| a.into_owned());
+        } else if let Some(tag) = tagged_file.first_tag() {
+            if let Some(title) = tag.title() {
+                track_title = title.into_owned();
+            }
+            track_artist = tag.artist().map(|a| a.into_owned());
+            track_album = tag.album().map(|a| a.into_owned());
+        }
+    }
+
+    Ok(Track {
+        id: uuid::Uuid::new_v4().to_string(),
+        path,
+        title: track_title,
+        artist: track_artist,
+        album: track_album,
+        duration: track_duration,
+    })
 }
 
 #[tauri::command]
@@ -360,12 +478,15 @@ async fn main() {
             add_to_queue,
             replace_queue,
             scan_local_folder,
+            scan_single_file,
             play_track,
             pause_audio,
             resume_audio,
             stop_audio,
             set_volume,
             authenticate_spotify,
+            save_token,
+            get_token,
             get_playback_position,
             initialize_ia,
             query_ia,

@@ -35,13 +35,15 @@ import {
   Code,
   ArrowRight,
   Filter,
-  BarChart4
+  BarChart4,
+  Home
 } from 'lucide-react';
 import { usePlayerStore } from './store/playerStore';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Visualizer } from './components/Visualizer';
 import { localAIService } from './services/localAIService';
 import { open } from '@tauri-apps/plugin-dialog';
+import { HomeView } from './views/HomeView';
 
 const formatTime = (seconds: number) => {
   if (!seconds || isNaN(seconds)) return "0:00";
@@ -1078,6 +1080,7 @@ const SearchResultsView = () => {
 
   const renderContent = () => {
     switch (activeTab) {
+      case 'home': return <HomeView onAISearch={handleAISearch} isIAReady={isIAReady} />;
       case 'discover': return <DiscoverView onAlchemist={handleAlchemist} />;
       case 'neurid_ai': return <NeuridAIView onProcessCommand={processCommandWithWorker} />;
       case 'library': return <LibraryView />;
@@ -1086,7 +1089,7 @@ const SearchResultsView = () => {
       case 'integrations': return <IntegrationsView onAuditor={handleAuditor} />;
       case 'settings': return <SettingsView isIAReady={isIAReady} />;
       case 'search': return <SearchResultsView />;
-      default: return <DiscoverView onAlchemist={handleAlchemist} />;
+      default: return <HomeView onAISearch={handleAISearch} isIAReady={isIAReady} />;
     }
   };
 
@@ -1097,7 +1100,7 @@ const SearchResultsView = () => {
       <aside className="w-72 bg-[#121620]/80 backdrop-blur-xl border-r border-white/5 flex flex-col justify-between z-50 relative shadow-2xl">
         <div>
           {/* Logo Section */}
-          <div className="p-8 flex items-center gap-4 group cursor-pointer" onClick={() => setActiveTab('discover')}>
+          <div className="p-8 flex items-center gap-4 group cursor-pointer" onClick={() => setActiveTab('home')}>
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-400 to-purple-600 flex items-center justify-center shadow-[0_0_20px_rgba(52,211,153,0.3)] group-hover:scale-110 transition-transform duration-500">
               <Zap className="text-white fill-current" size={24} />
             </div>
@@ -1109,6 +1112,7 @@ const SearchResultsView = () => {
 
           {/* Navigation */}
           <nav className="mt-4 px-6 space-y-2">
+            <NavItem icon={<Home size={20} />} label="Inicio" active={activeTab === 'home'} onClick={() => { setActiveTab('home'); }} />
             <NavItem icon={<Compass size={20} />} label="Descubrir" active={activeTab === 'discover'} onClick={() => { setActiveTab('discover'); }} />
             <NavItem icon={<Library size={20} />} label="Biblioteca" active={activeTab === 'library'} onClick={() => { setActiveTab('library'); }} />
             <NavItem icon={<ListMusic size={20} />} label="Playlists" active={activeTab === 'playlists'} onClick={() => { setActiveTab('playlists'); }} />
