@@ -64,15 +64,18 @@ my-music-player/
 └── vite.config.ts             # Configuración de Vite.
 ```
 
-## Cómo ejecutar el proyecto en tu máquina (Local)
+### 1. Instalación de Dependencias del Sistema
 
-Cuando llegues a casa y descargues este repositorio, necesitarás tener instalado **Node.js** y **Rust**. Para ejecutarlo en modo escritorio:
+**En Fedora (44+):**
+```bash
+sudo dnf install webkit2gtk4.1-devel openssl-devel libappindicator-gtk3-devel librsvg2-devel alsa-lib-devel gcc-c++ make
+```
 
-1. Instala las dependencias del sistema (en Linux/Ubuntu):
-   ```bash
-   sudo apt update
-   sudo apt install libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libasound2-dev
-   ```
+**En Ubuntu/Debian:**
+```bash
+sudo apt update
+sudo apt install libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libasound2-dev
+```
 2. Instala los paquetes de Node:
    ```bash
    npm install
@@ -81,6 +84,12 @@ Cuando llegues a casa y descargues este repositorio, necesitarás tener instalad
    ```bash
    npm run tauri dev
    ```
+
+## Características Avanzadas (v1.0.0)
+- **Visualizador en Tiempo Real**: Espectro de audio dinámico que reacciona a la música (Híbrido Rust/WebAudio).
+- **IA Neurid 2.0**: Comandos con memoria de contexto ("vuelve a la anterior") y creación dinámica de playlists.
+- **Pre-resolución Gapless**: Carga inteligente de streams de YouTube para transiciones sin pausas.
+- **Diseño Ultra-Wide**: Interfaz adaptativa optimizada para pantallas grandes y 4K.
 
 ---
 ¡El reproductor está listo para que lo pruebes y sigas expandiéndolo!

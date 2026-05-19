@@ -7,6 +7,19 @@
     "core:default",
     "opener:default",
     "dialog:default",
-    "my-music-player:default"
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://api.spotify.com/*" },
+        { "url": "https://accounts.spotify.com/*" },
+        { "url": "https://api.deezer.com/*" },
+        { "url": "https://*.pipedapi.kavin.rocks/*" },
+        { "url": "https://api.piped.victr.me/*" },
+        { "url": "https://piped-api.garudalinux.org/*" },
+        { "url": "https://i.ytimg.com/*" }
+      ]
+    },
+    "allow-spotify",
+    "default"
   ]
 }

@@ -27,7 +27,7 @@ export const processCommand = async (command: string, setStatus: (s: string) => 
       }
     });
 
-    const candidateLabels = ['play music', 'pause music', 'next track', 'previous track'];
+    const candidateLabels = ['play music', 'pause music', 'next track', 'previous track', 'search music', 'switch view', 'create playlist'];
 
     // Ejecutamos la clasificación
     const output = await classifier(command, candidateLabels);
@@ -37,7 +37,7 @@ export const processCommand = async (command: string, setStatus: (s: string) => 
     const score = output.scores[0];
 
     // Si la confianza es alta, ejecutamos la acción
-    if (score > 0.4) {
+    if (score > 0.35) {
       const store = usePlayerStore.getState();
       switch (bestMatch) {
         case 'play music':
@@ -53,9 +53,61 @@ export const processCommand = async (command: string, setStatus: (s: string) => 
           setStatus('Acción: Siguiente pista...');
           break;
         case 'previous track':
-          await store.prevTrack();
-          setStatus('Acción: Pista anterior...');
+          if (command.includes('antes') || command.includes('anterior')) {
+              await store.prevTrack();
+              setStatus('Acción: Volviendo a la anterior...');
+          } else {
+              // Just resume
+              await store.resume();
+              setStatus('Reproduciendo...');
+          }
           break;
+        case 'create playlist': {
+          const title = command.toLowerCase()
+            .replace('crea', '')
+            .replace('crear', '')
+            .replace('lista', '')
+            .replace('playlist', '')
+            .replace('llamada', '')
+            .trim();
+          if (title) {
+            await store.createPlaylist(title);
+            setStatus(`Playlist "${title}" creada con éxito.`);
+            store.setActiveTab('playlists');
+          } else {
+            setStatus('¿Cómo quieres llamar a la lista?');
+          }
+          break;
+        }
+        case 'search music': {
+          const query = command.toLowerCase()
+            .replace('busca', '')
+            .replace('buscar', '')
+            .replace('search', '')
+            .replace('pon', '')
+            .trim();
+          
+          if (query) {
+            setStatus(`Buscando "${query}" en YouTube...`);
+            await store.searchYouTube(query);
+            store.setActiveTab('integrations');
+          } else {
+            setStatus('¿Qué quieres que busque?');
+          }
+          break;
+        }
+        case 'switch view': {
+          const cmd = command.toLowerCase();
+          if (cmd.includes('libreria') || cmd.includes('library')) store.setActiveTab('library');
+          else if (cmd.includes('playlist') || cmd.includes('lista')) store.setActiveTab('playlists');
+          else if (cmd.includes('letra') || cmd.includes('lyrics')) store.setActiveTab('lyrics');
+          else if (cmd.includes('ajuste') || cmd.includes('config') || cmd.includes('settings')) store.setActiveTab('settings');
+          else if (cmd.includes('vincular') || cmd.includes('conectar') || cmd.includes('integrations')) store.setActiveTab('integrations');
+          else store.setActiveTab('neurid_ai');
+          
+          setStatus('Cambiando de vista...');
+          break;
+        }
         default:
           setStatus('Comando no reconocido por la IA.');
       }
